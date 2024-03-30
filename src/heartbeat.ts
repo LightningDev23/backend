@@ -9,62 +9,67 @@ let config: MySchema = {} as MySchema;
 
 logger.who = "HTB";
 
-const sessions: Map<string, {
-    interval: number;
-    lastHeartbeat: number;
-}> = new Map();
+const sessions: Map<
+	string,
+	{
+		interval: number;
+		lastHeartbeat: number;
+	}
+> = new Map();
 
 self.onmessage = (event) => {
-    const { data: rawData } = event;
-    
-    if (isConfigResponse(rawData)) {
-        config = rawData.data;
-        
-        setInterval(() => {
-            const users = Array.from(sessions.entries()).filter(([, session]) => session.lastHeartbeat !== 0 && session.lastHeartbeat + session.interval + Number(config?.ws.intervals.heartbeat.leeway) < Date.now());
-        
-            for (const [sessionId] of users) {
-                logger.debug(`Kicking session: ${sessionId}`);
-        
-                self.postMessage({
-                    type: "heartbeat",
-                    data: {
-                        event: "kick",
-                        data: {
-                            sessionId,
-                        },
-                    }
-                });
-        
-                sessions.delete(sessionId);
-            }
-        }, Number(config?.ws.intervals.heartbeat.interval));
-        
-        
-        return;
-    }
-    
-    const { data } = rawData;
+	const { data: rawData } = event;
 
-    if (data.event === "session") {
-        sessions.set(data.data.sessionId, {
-            interval: data.data.interval,
-            lastHeartbeat: Date.now(),
-        });
+	if (isConfigResponse(rawData)) {
+		config = rawData.data;
 
-        logger.debug(`New session: ${data.data.sessionId}`);
-    } else if (data.event === "heartbeat") {
-        const session = sessions.get(data.data.sessionId);
+		setInterval(() => {
+			const users = Array.from(sessions.entries()).filter(
+				([, session]) =>
+					session.lastHeartbeat !== 0 &&
+					session.lastHeartbeat + session.interval + Number(config?.ws.intervals.heartbeat.leeway) < Date.now(),
+			);
 
-        if (!session) return;
+			for (const [sessionId] of users) {
+				logger.debug(`Kicking session: ${sessionId}`);
 
-        session.lastHeartbeat = Date.now();
+				self.postMessage({
+					type: "heartbeat",
+					data: {
+						event: "kick",
+						data: {
+							sessionId,
+						},
+					},
+				});
 
-        logger.debug(`Heartbeat from ${data.data.sessionId}`);
-    } else if (data.event === "left") {
-        sessions.delete(data.data.sessionId);
+				sessions.delete(sessionId);
+			}
+		}, Number(config?.ws.intervals.heartbeat.interval));
 
-        logger.debug(`Session left: ${data.data.sessionId}`);
-    }
+		return;
+	}
+
+	const { data } = rawData;
+
+	if (data.event === "session") {
+		sessions.set(data.data.sessionId, {
+			interval: data.data.interval,
+			lastHeartbeat: Date.now(),
+		});
+
+		logger.debug(`New session: ${data.data.sessionId}`);
+	} else if (data.event === "heartbeat") {
+		const session = sessions.get(data.data.sessionId);
+
+		if (!session) return;
+
+		session.lastHeartbeat = Date.now();
+
+		logger.debug(`Heartbeat from ${data.data.sessionId}`);
+	} else if (data.event === "left") {
+		sessions.delete(data.data.sessionId);
+
+		logger.debug(`Session left: ${data.data.sessionId}`);
+	}
 };
-

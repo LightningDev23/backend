@@ -63,7 +63,7 @@ export default class UserSettings extends Route {
 	}: CreateRoute<"/@me/settings", Infer<typeof patchSettings>, [UserMiddlewareType]>) {
 		const failedToUpdateSettigns = errorGen.FailedToPatchUser();
 
-		const data: Partial<Infer<typeof patchSettings> & { navLocation?: "bottom" | "left"; }> = {};
+		const data: Partial<Infer<typeof patchSettings> & { navLocation?: "bottom" | "left" }> = {};
 
 		if (body.theme) {
 			data.theme = body.theme;
@@ -117,13 +117,13 @@ export default class UserSettings extends Route {
 				...data,
 			});
 		}
-		
+
 		if (body.customStatus !== undefined) {
 			const fetchedPresence = await this.App.cache.get(`user:${Encryption.encrypt(user.id)}`);
 			const parsedPresence = JSON.parse(
 				(fetchedPresence as string) ??
-				`[{ "sessionId": null, "since": null, "state": null, "type": ${presenceTypes.custom}, "status": ${statusTypes.offline} }]`,
-			) as { sessionId: string | null; since: number | null; state: string | null; status: number; type: number; }[];
+					`[{ "sessionId": null, "since": null, "state": null, "type": ${presenceTypes.custom}, "status": ${statusTypes.offline} }]`,
+			) as { sessionId: string | null; since: number | null; state: string | null; status: number; type: number }[];
 
 			for (const presence of parsedPresence) {
 				if (presence.type === presenceTypes.custom) {
@@ -151,7 +151,7 @@ export default class UserSettings extends Route {
 					},
 					guildId: guild,
 					presences: parsedPresence,
-					guilds: user.guilds
+					guilds: user.guilds,
 				});
 			}
 
@@ -166,8 +166,8 @@ export default class UserSettings extends Route {
 			privacy: user.settings.privacy,
 			customStatus: body.customStatus ?? user.settings.customStatus,
 			theme: body.theme ?? user.settings.theme,
-			emojiPack: (body.emojiPack ?? user.settings.emojiPack) ?? "twemoji",
-			navBarLocation: (body.navBarLocation ?? user.settings.navBarLocation) ?? "bottom",
+			emojiPack: body.emojiPack ?? user.settings.emojiPack ?? "twemoji",
+			navBarLocation: body.navBarLocation ?? user.settings.navBarLocation ?? "bottom",
 		};
 	}
 }

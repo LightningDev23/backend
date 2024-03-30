@@ -3,7 +3,16 @@ import process from "node:process";
 import type { MySchema } from "./Types/JsonSchemaType.ts";
 import Logger from "./Utils/Classes/Logger.ts";
 import RabbitMQ from "./Utils/Classes/Shared/RabbitMQ.ts";
-import { isQuestion, isConfigResponse, isLog, isNewLog, isReady, isRabbitMqType, isHeartbeatMessage } from "./Utils/threadMessages.ts";
+import {
+	isQuestion,
+	isConfigResponse,
+	isLog,
+	isNewLog,
+	isReady,
+	isRabbitMqType,
+	isHeartbeatMessage,
+	isInternalRoutingRequest,
+} from "./Utils/threadMessages.ts";
 
 const getUrl = (url: string): string => join(import.meta.dirname, url);
 
@@ -48,7 +57,7 @@ const handleMessage = async (worker: "api" | "heartbeat" | "ws", event: MessageE
 		data.api.config = event.data.data;
 
 		heartbeat.postMessage({ type: "config", data: event.data.data });
-		
+
 		if (rabbitMq) return;
 
 		rabbitMq = new RabbitMQ(data.api.config);
@@ -58,15 +67,24 @@ const handleMessage = async (worker: "api" | "heartbeat" | "ws", event: MessageE
 		mainLogger.info("RabbitMQ is ready");
 
 		rabbitMq.on("data", (data) => {
+			if (isInternalRoutingRequest(data)) {
+				api.postMessage({
+					type: "routing",
+					data,
+				});
+
+				return;
+			}
+
 			websocket.postMessage(data);
 		});
 	} else if (isNewLog(event.data)) {
 		mainLogger.info(...event.data.data);
 	} else if (isRabbitMqType(event.data)) {
 		if (rabbitMq) {
-			rabbitMq.send(event.data.data.topic, event.data.data.data);
+			rabbitMq.send(event.data.data.topic, event.data.data.data, event.data.data?.raw ?? false);
 		}
-	} else if(isHeartbeatMessage(event.data) && worker === "ws") {
+	} else if (isHeartbeatMessage(event.data) && worker === "ws") {
 		heartbeat.postMessage(event.data);
 	} else if (worker === "heartbeat" && isHeartbeatMessage(event.data)) {
 		websocket.postMessage(event.data);

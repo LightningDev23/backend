@@ -18,7 +18,7 @@ const createRoleBody = {
 	hoist: boolean().optional(),
 	position: number().min(0).max(100),
 	allowedAgeRestricted: boolean().optional(),
-} 
+};
 
 export default class FetchCreateRoles extends Route {
 	public constructor(App: API) {
@@ -42,7 +42,11 @@ export default class FetchCreateRoles extends Route {
 		}),
 	)
 	@Middleware(bodyValidator(createRoleBody))
-	public postRoles({ body, user, params }: CreateRoute<"/:guildId/roles", Infer<typeof createRoleBody>, [UserMiddlewareType]>) {
+	public postRoles({
+		body,
+		user,
+		params,
+	}: CreateRoute<"/:guildId/roles", Infer<typeof createRoleBody>, [UserMiddlewareType]>) {
 		return {};
 	}
 }

@@ -21,23 +21,26 @@ type PermissionKeys = {
 type PermissionKey = PermissionKeys[keyof PermissionKeys];
 
 class Permissions {
-	public bits: [bigint | string, FlagUtilsBInt<typeof permissions[keyof typeof permissions]["subPermissions"]>][];
+	public bits: [bigint | string, FlagUtilsBInt<(typeof permissions)[keyof typeof permissions]["subPermissions"]>][];
 
 	public constructor(bits: [bigint | string, bigint | string][]) {
-		this.bits = bits.map(
-			([group, subPermission]) => [BigInt(group),
-			new FlagUtilsBInt<typeof permissions[keyof typeof permissions]["subPermissions"]>(subPermission, Object.values(permissions).find((permission) => permission.int === BigInt(group))?.subPermissions ?? {})
-			],
-		);
+		this.bits = bits.map(([group, subPermission]) => [
+			BigInt(group),
+			new FlagUtilsBInt<(typeof permissions)[keyof typeof permissions]["subPermissions"]>(
+				subPermission,
+				Object.values(permissions).find((permission) => permission.int === BigInt(group))?.subPermissions ?? {},
+			),
+		]);
 	}
 
-	public has<T extends PermissionKey, HT extends hasType>(
-		perms: T[],
-		ignoreAdmin?: boolean,
-		type?: HT,
-	): boolean {
+	public has<T extends PermissionKey, HT extends hasType>(perms: T[], ignoreAdmin?: boolean, type?: HT): boolean {
 		// @ts-expect-error idc
-		if (perms.includes("Administrator") && !ignoreAdmin && this.bits.some(([bits]) => BigInt(bits) === permissions.Administrator.int)) return true;
+		if (
+			perms.includes("Administrator") &&
+			!ignoreAdmin &&
+			this.bits.some(([bits]) => BigInt(bits) === permissions.Administrator.int)
+		)
+			return true;
 
 		for (const perm of perms) {
 			const group = this.getGroupFromSubPermission(perm)!;
@@ -47,8 +50,8 @@ class Permissions {
 			if (index === -1) return false;
 
 			// @ts-expect-error idc
-			if (type === "all" && !this.bits[index][1].has(permissions[group].subPermissions[perm])) return false
-			
+			if (type === "all" && !this.bits[index][1].has(permissions[group].subPermissions[perm])) return false;
+
 			// @ts-expect-error idc
 			if (this.bits[index][1].has(permissions[group].subPermissions[perm])) return true;
 		}
@@ -59,7 +62,15 @@ class Permissions {
 	public add<T extends PermissionKey>(perms: (T | "Administrator")[]): this {
 		for (const perm of perms) {
 			if (perm === "Administrator") {
-				this.bits = [[permissions.Administrator.int, new FlagUtilsBInt<typeof permissions[keyof typeof permissions]["subPermissions"]>(0n, permissions.Administrator.subPermissions)]];
+				this.bits = [
+					[
+						permissions.Administrator.int,
+						new FlagUtilsBInt<(typeof permissions)[keyof typeof permissions]["subPermissions"]>(
+							0n,
+							permissions.Administrator.subPermissions,
+						),
+					],
+				];
 
 				continue;
 			}
@@ -67,7 +78,13 @@ class Permissions {
 			const group = this.getGroupFromSubPermission(perm)!;
 
 			if (!this.bits.some(([perm]) => BigInt(perm) === permissions[group].int)) {
-				this.bits.push([permissions[group].int, new FlagUtilsBInt<typeof permissions[keyof typeof permissions]["subPermissions"]>(0n, permissions[group].subPermissions)]);
+				this.bits.push([
+					permissions[group].int,
+					new FlagUtilsBInt<(typeof permissions)[keyof typeof permissions]["subPermissions"]>(
+						0n,
+						permissions[group].subPermissions,
+					),
+				]);
 			}
 
 			const index = this.bits.findIndex(([bits]) => BigInt(bits) === permissions[group].int);
@@ -75,7 +92,6 @@ class Permissions {
 			// @ts-expect-error idc
 			this.bits[index][1].add(permissions[group].subPermissions[perm]);
 		}
-
 
 		return this;
 	}
@@ -103,23 +119,23 @@ class Permissions {
 
 			// @ts-expect-error idc
 			this.bits[index][1].remove(permissions[group].subPermissions[perm]);
-			
+
 			// @ts-expect-error idc
 			if (this.bits[index][1].bits === 0n) {
 				this.bits.splice(index, 1);
 			}
 		}
-		
+
 		return this;
 	}
-	
+
 	public toJSON() {
 		const obj: Record<string, Record<string, boolean>> = {};
-		
+
 		for (const [group, stuff] of Object.entries(permissions)) {
 			for (const [subPermission] of Object.entries(stuff.subPermissions)) {
 				if (!obj[group]) obj[group] = {};
-				
+
 				// @ts-expect-error idc
 				obj[group][subPermission] = this.has([subPermission as PermissionKey], true, "some");
 			}

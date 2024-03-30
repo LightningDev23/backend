@@ -15,7 +15,7 @@ export interface PresenceUpdate {
 		publicFlags: string;
 		tag: string;
 		username: string;
-	}
+	};
 }
 
 export default PresenceUpdate;

@@ -3,6 +3,6 @@ import type GuildMembers from "@/Utils/Cql/Types/GuildMember.ts";
 
 export interface GuildCreate {
 	guild: finishedGuild;
-	member: GuildMembers,
+	member: GuildMembers;
 	userId: string;
 }

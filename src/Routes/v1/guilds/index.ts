@@ -144,7 +144,7 @@ export default class FetchGuilds extends Route {
 			AllowedRequesters: "User",
 		}),
 	)
-	public async getGuilds({ user, query }: CreateRoute<"/guilds", any, [UserMiddlewareType], any, { include: string; }>) {
+	public async getGuilds({ user, query }: CreateRoute<"/guilds", any, [UserMiddlewareType], any, { include: string }>) {
 		const rawFinishedGuild: rawGuild[] = [];
 		const invalidGuildIds: string[] = [];
 		const include: ("channels" | "owners" | "roles")[] = query.include
@@ -166,14 +166,14 @@ export default class FetchGuilds extends Route {
 
 			const rawChannels = include.includes("channels")
 				? await this.App.cassandra.models.Channel.find({
-					guildId: Encryption.encrypt(guild),
-				})
+						guildId: Encryption.encrypt(guild),
+					})
 				: null;
 
 			const rawRoles = include.includes("roles")
 				? await this.App.cassandra.models.Role.find({
-					guildId: Encryption.encrypt(guild),
-				})
+						guildId: Encryption.encrypt(guild),
+					})
 				: null;
 
 			const raw: rawGuild = {
@@ -515,7 +515,7 @@ export default class FetchGuilds extends Route {
 				position: newChannels.findIndex((c) => c.id === channel.id),
 			});
 		}
-		
+
 		for (const role of newRoles) {
 			roles.push({
 				color: role.color,
@@ -553,7 +553,7 @@ export default class FetchGuilds extends Route {
 			userId: Encryption.encrypt(user.id),
 			guildMemberId: this.App.snowflake.generate(),
 			channelAcks: [],
-			left: false
+			left: false,
 		});
 
 		const fixedChannels = fixChannelPositionsWithoutNewChannel(channels);
@@ -648,19 +648,21 @@ export default class FetchGuilds extends Route {
 				joinedAt: new Date(),
 				flags: Constants.guildMemberFlags.Owner | Constants.guildMemberFlags.In,
 				timeouts: [],
-				owner: true
-			}
+				owner: true,
+			},
 		});
 
 		return finishedGuild;
 	}
 
 	public sortChannels(channels: Infer<typeof postGuild>["channels"] = []) {
-		const parentlessChannels = channels.filter(channel => !channel.parentId).sort((a, b) => a.position! - b.position!);
-		const parentChannels = channels.filter(channel => channel.parentId).sort((a, b) => a.position! - b.position!);
+		const parentlessChannels = channels
+			.filter((channel) => !channel.parentId)
+			.sort((a, b) => a.position! - b.position!);
+		const parentChannels = channels.filter((channel) => channel.parentId).sort((a, b) => a.position! - b.position!);
 
-		return parentlessChannels.flatMap(channel => {
-			const children = parentChannels.filter(child => child.parentId === channel.id);
+		return parentlessChannels.flatMap((channel) => {
+			const children = parentChannels.filter((child) => child.parentId === channel.id);
 			return children.length ? [channel, ...children] : channel;
 		});
 	}

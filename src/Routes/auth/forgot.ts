@@ -16,7 +16,7 @@ import Route from "@/Utils/Classes/Routing/Route.ts";
 import Token from "@/Utils/Classes/Token.ts";
 
 const forgotPasswordBody = {
-	email: string().email()
+	email: string().email(),
 };
 
 export default class ForgotPassword extends Route {
@@ -29,17 +29,20 @@ export default class ForgotPassword extends Route {
 	@ContentTypes("application/json")
 	@Middleware(bodyValidator(forgotPasswordBody))
 	public async postForgot({ body, set, ip }: CreateRoute<"/forgot", Infer<typeof forgotPasswordBody>>) {
-		
-		const user = await this.App.cassandra.models.User.get({ email: Encryption.encrypt(body.email) }, { fields: ["userId", "email", "username"] });
-		
-		if (!user) { // ? 204 means we successfully did nothing, though the client should always interpret this as a success
+		const user = await this.App.cassandra.models.User.get(
+			{ email: Encryption.encrypt(body.email) },
+			{ fields: ["userId", "email", "username"] },
+		);
+
+		if (!user) {
+			// ? 204 means we successfully did nothing, though the client should always interpret this as a success
 			set.status = 204;
-			
+
 			return;
-		}		
-		
+		}
+
 		const generated = this.generateEmailToken(body.email);
-		
+
 		await this.App.cassandra.models.VerificationLink.insert({
 			code: Encryption.encrypt(generated.token),
 			createdDate: new Date(),
@@ -48,32 +51,44 @@ export default class ForgotPassword extends Route {
 			flags: Constants.verificationFlags.ForgotPassword,
 			id: Encryption.encrypt(generated.id),
 			ip: Encryption.encrypt(ip),
-		})
-		
-		const renderedEmail = render(forgotPassword(Encryption.decrypt(user.username), `https://development.kastelapp.com/reset/${generated.id}/${generated.token}`), {
-			pretty: false
 		});
-		
-		const renderedText = render(forgotPassword(Encryption.decrypt(user.username), `https://development.kastelapp.com/reset/${generated.id}/${generated.token}`), {
-			pretty: false,
-			plainText: true
-		});
-		
+
+		const renderedEmail = render(
+			forgotPassword(
+				Encryption.decrypt(user.username),
+				`https://development.kastelapp.com/reset/${generated.id}/${generated.token}`,
+			),
+			{
+				pretty: false,
+			},
+		);
+
+		const renderedText = render(
+			forgotPassword(
+				Encryption.decrypt(user.username),
+				`https://development.kastelapp.com/reset/${generated.id}/${generated.token}`,
+			),
+			{
+				pretty: false,
+				plainText: true,
+			},
+		);
+
 		this.App.sendEmail("NoReply", body.email, "Reset your password", renderedEmail, renderedText);
-		
+
 		set.status = 204;
 	}
-	
+
 	public generateEmailToken(email: string) {
 		const snowflake = this.App.snowflake.generate();
-	
+
 		const rawToken = Bun.SHA512.hash(Encryption.encrypt(`${snowflake}.${email}.${Token.generateToken(snowflake)}`)); // typed array
-		
+
 		const hexToken = Buffer.from(rawToken.buffer).toString("hex");
-		
+
 		return {
 			id: snowflake,
 			token: hexToken,
-		}
+		};
 	}
 }

@@ -6,7 +6,8 @@ export type Features =
 	| "DisableLogin"
 	| "DisablePasswordReset"
 	| "DisableRegistration"
-	| "InviteBasedRegistration";
+	| "InviteBasedRegistration"
+	| "MulitSocketMode"; // if there's multiple API's and WS's
 
 export interface MySchema {
 	encryption: Encryption;

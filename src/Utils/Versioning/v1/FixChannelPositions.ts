@@ -1,13 +1,13 @@
 import type { Channel } from "../../Cql/Types";
 
 export const fixChannelPositionsWithoutNewChannel = (channels: Channel[]): Channel[] => {
-	const parentlessChannels = channels.filter(channel => !channel.parentId).sort((a, b) => a.position - b.position);
-    const parentChannels = channels.filter(channel => channel.parentId).sort((a, b) => a.position - b.position);
-    
-    return parentlessChannels.flatMap(channel => {
-        const children = parentChannels.filter(child => child.parentId === channel.channelId);
-        return children.length ? [channel, ...children] : channel;
-    });
+	const parentlessChannels = channels.filter((channel) => !channel.parentId).sort((a, b) => a.position - b.position);
+	const parentChannels = channels.filter((channel) => channel.parentId).sort((a, b) => a.position - b.position);
+
+	return parentlessChannels.flatMap((channel) => {
+		const children = parentChannels.filter((child) => child.parentId === channel.channelId);
+		return children.length ? [channel, ...children] : channel;
+	});
 };
 
 export const fixChannelPositions = (channel: Channel, existingChannels: Channel[]): Channel[] => {
@@ -45,7 +45,6 @@ export const fixChannelPositions = (channel: Channel, existingChannels: Channel[
 	WARNING: Changing how this works is API version breaking, So do not mess with this function unless it will output the same as the old one
 	WARNING: You may change it on a brand new experiment API version but not on old ones nor the current latest one.
 	*/
-	
+
 	return fixChannelPositionsWithoutNewChannel(existingChannels.concat(channel));
 };
-

@@ -33,12 +33,19 @@ export default class ResetPassword extends Route {
 	@ContentTypes("application/json")
 	@Middleware(bodyValidator(patchResetBody))
 	public async patchReset({ body, set, ip }: CreateRoute<"/reset", Infer<typeof patchResetBody>>) {
-		const fetchedReset = await this.App.cassandra.models.VerificationLink.get({
-			code: Encryption.encrypt(body.token),
-			id: Encryption.encrypt(body.id),
-		}, { fields: ["expireDate", "userId", "ip", "flags"] });
+		const fetchedReset = await this.App.cassandra.models.VerificationLink.get(
+			{
+				code: Encryption.encrypt(body.token),
+				id: Encryption.encrypt(body.id),
+			},
+			{ fields: ["expireDate", "userId", "ip", "flags"] },
+		);
 
-		if (!fetchedReset || fetchedReset.expireDate.getTime() < Date.now() || verificationFlags.ForgotPassword !== fetchedReset.flags) {
+		if (
+			!fetchedReset ||
+			fetchedReset.expireDate.getTime() < Date.now() ||
+			verificationFlags.ForgotPassword !== fetchedReset.flags
+		) {
 			this.App.logger.debug("Invalid reset token or expired token.", fetchedReset);
 
 			set.status = 404;
@@ -77,7 +84,10 @@ export default class ResetPassword extends Route {
 			password: await Bun.password.hash(body.password),
 		});
 
-		let settings = await this.App.cassandra.models.Settings.get({ userId: fetchedReset.userId }, { fields: ["tokens", "userId"] });
+		let settings = await this.App.cassandra.models.Settings.get(
+			{ userId: fetchedReset.userId },
+			{ fields: ["tokens", "userId"] },
+		);
 
 		const wasNull = !settings;
 
@@ -139,13 +149,19 @@ export default class ResetPassword extends Route {
 	@ContentTypes("application/json")
 	@Middleware(bodyValidator(postResetBody))
 	public async postReset({ body, set }: CreateRoute<"/reset", Infer<typeof postResetBody>>) {
+		const fetchedReset = await this.App.cassandra.models.VerificationLink.get(
+			{
+				code: Encryption.encrypt(body.token),
+				id: Encryption.encrypt(body.id),
+			},
+			{ fields: ["expireDate", "flags"] },
+		);
 
-		const fetchedReset = await this.App.cassandra.models.VerificationLink.get({
-			code: Encryption.encrypt(body.token),
-			id: Encryption.encrypt(body.id),
-		}, { fields: ["expireDate", "flags"] });
-
-		if (!fetchedReset || fetchedReset.expireDate.getTime() < Date.now() || verificationFlags.ForgotPassword !== fetchedReset.flags) {
+		if (
+			!fetchedReset ||
+			fetchedReset.expireDate.getTime() < Date.now() ||
+			verificationFlags.ForgotPassword !== fetchedReset.flags
+		) {
 			set.status = 404;
 
 			if (fetchedReset) {

@@ -309,12 +309,13 @@ class App {
 		return buckets;
 	}
 
-	public rabbitMQForwarder(topic: GetChannelTypes<typeof channels>, data: unknown) {
+	public rabbitMQForwarder(topic: GetChannelTypes<typeof channels>, data: unknown, raw = false) {
 		postMessage({
 			type: "rabbitMQ",
 			data: {
 				topic,
 				data,
+				raw,
 			},
 		});
 	}

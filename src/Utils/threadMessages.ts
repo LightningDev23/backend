@@ -1,3 +1,4 @@
+import type { InternalRequest } from "@/Types/InternalRoute.ts";
 import type { MySchema } from "@/Types/JsonSchemaType.ts";
 import type { GetChannelTypes, channels } from "./Classes/Shared/RabbitMQ.ts";
 
@@ -59,7 +60,7 @@ const isConfigResponse = (data: unknown): data is { data: MySchema; type: "confi
 
 const isRabbitMqType = (
 	data: unknown,
-): data is { data: { data: unknown; topic: GetChannelTypes<typeof channels> }; type: "rabbitMQ" } => {
+): data is { data: { data: unknown; raw: boolean; topic: GetChannelTypes<typeof channels> }; type: "rabbitMQ" } => {
 	if (!isImportant(data)) return false;
 
 	if (data.type !== "rabbitMQ") return false;
@@ -73,7 +74,9 @@ const isRabbitMqType = (
 	return "topic" in data.data;
 };
 
-const isHeartbeatMessage = (data: unknown): data is { data: { data: { interval?: number, sessionId: string }, event: string }, type: "heartbeat" } => {
+const isHeartbeatMessage = (
+	data: unknown,
+): data is { data: { data: { interval?: number; sessionId: string }; event: string }; type: "heartbeat" } => {
 	if (typeof data !== "object") return false;
 
 	if (data === null) return false;
@@ -84,7 +87,37 @@ const isHeartbeatMessage = (data: unknown): data is { data: { data: { interval?:
 
 	if (data.type !== "heartbeat") return false;
 
-	return "data" in data
-}
+	return "data" in data;
+};
 
-export { isImportant, isLog, isNewLog, isQuestion, isReady, isConfigResponse, isRabbitMqType, isHeartbeatMessage };
+const isInternalRoutingRequest = (data: unknown): data is InternalRequest => {
+	if (typeof data !== "object") return false;
+
+	if (data === null) return false;
+
+	if (!("method" in data)) return false;
+
+	if (typeof data.method !== "string") return false;
+
+	if (!("nonce" in data)) return false;
+
+	if (typeof data.nonce !== "string") return false;
+
+	if (!("route" in data)) return false;
+
+	if (typeof data.route !== "string") return false;
+
+	return "version" in data && typeof data.version === "number";
+};
+
+export {
+	isImportant,
+	isLog,
+	isNewLog,
+	isQuestion,
+	isReady,
+	isConfigResponse,
+	isRabbitMqType,
+	isHeartbeatMessage,
+	isInternalRoutingRequest,
+};

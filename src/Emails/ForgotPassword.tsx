@@ -94,26 +94,22 @@ const forgotPassword = (username: string, resetPasswordUrl: string) => {
 					<Text style={styles.header}>Hello {username},</Text>
 					<br />
 					<Text style={styles.paragraph}>
-						We received a request to reset your password. If you did not make this request, please ignore this email. Otherwise, you can reset your password using the button below.
+						We received a request to reset your password. If you did not make this request, please ignore this email.
+						Otherwise, you can reset your password using the button below.
 					</Text>
 					<br />
 					<Hr style={styles.hr} />
-					<Text style={styles.btnText}>
-						Click the button below to reset your password.
-					</Text>
+					<Text style={styles.btnText}>Click the button below to reset your password.</Text>
 					<Section style={styles.btnContainer}>
 						<Button style={styles.btn} href={resetPasswordUrl}>
 							Reset Password
 						</Button>
 					</Section>
-					<Text style={styles.footer}>
-						If you have any questions, feel free to contact our support team.
-					</Text>
+					<Text style={styles.footer}>If you have any questions, feel free to contact our support team.</Text>
 				</Container>
 			</Body>
 		</Html>
 	);
 };
 
-
-export default forgotPassword
+export default forgotPassword;

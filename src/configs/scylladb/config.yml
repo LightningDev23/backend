@@ -75,17 +75,17 @@ schema_commitlog_segment_size_in_mb: 32
 # seed_provider class_name is saved for future use.
 # A seed address is mandatory.
 seed_provider:
-    # The addresses of hosts that will serve as contact points for the joining node.
-    # It allows the node to discover the cluster ring topology on startup (when
-    # joining the cluster).
-    # Once the node has joined the cluster, the seed list has no function.
-    - class_name: org.apache.cassandra.locator.SimpleSeedProvider
-      parameters:
-          # In a new cluster, provide the address of the first node.
-          # In an existing cluster, specify the address of at least one existing node.
-          # If you specify addresses of more than one node, use a comma to separate them.
-          # For example: "<IP1>,<IP2>,<IP3>"
-          - seeds: "127.0.0.1"
+  # The addresses of hosts that will serve as contact points for the joining node.
+  # It allows the node to discover the cluster ring topology on startup (when
+  # joining the cluster).
+  # Once the node has joined the cluster, the seed list has no function.
+  - class_name: org.apache.cassandra.locator.SimpleSeedProvider
+    parameters:
+      # In a new cluster, provide the address of the first node.
+      # In an existing cluster, specify the address of at least one existing node.
+      # If you specify addresses of more than one node, use a comma to separate them.
+      # For example: "<IP1>,<IP2>,<IP3>"
+      - seeds: "127.0.0.1"
 
 # Address to bind to and tell other Scylla nodes to connect to.
 # You _must_ change this if you want multiple nodes to be able to communicate!
@@ -98,7 +98,6 @@ listen_address: localhost
 # Address to broadcast to other Scylla nodes
 # Leaving this blank will set it to the same value as listen_address
 # broadcast_address: 1.2.3.4
-
 
 # When using multiple physical network interfaces, set this to true to listen on broadcast_address
 # in addition to the listen_address, allowing nodes to communicate in both interfaces.
@@ -256,8 +255,8 @@ authenticator: PasswordAuthenticator
 # authorizer: AllowAllAuthorizer
 
 # initial_token allows you to specify tokens manually.  While you can use # it with
-# vnodes (num_tokens > 1, above) -- in which case you should provide a 
-# comma-separated list -- it's primarily used when adding nodes # to legacy clusters 
+# vnodes (num_tokens > 1, above) -- in which case you should provide a
+# comma-separated list -- it's primarily used when adding nodes # to legacy clusters
 # that do not have vnodes enabled.
 # initial_token:
 
@@ -276,7 +275,7 @@ authenticator: PasswordAuthenticator
 
 # The directory where hints files are stored if hinted handoff is enabled.
 # hints_directory: /var/lib/scylla/hints
- 
+
 # The directory where hints files are stored for materialized-view updates
 # view_hints_directory: /var/lib/scylla/view_hints
 
@@ -290,7 +289,6 @@ authenticator: PasswordAuthenticator
 # generated.  After it has been dead this long, new hints for it will not be
 # created until it has been seen alive and gone down again.
 # max_hint_window_in_ms: 10800000 # 3 hours
-
 
 # Validity period for permissions cache (fetching permissions can be an
 # expensive operation depending on the authorizer, CassandraAuthorizer is
@@ -367,7 +365,7 @@ commitlog_total_space_in_mb: -1
 # snapshot_before_compaction: false
 
 # Whether or not a snapshot is taken of the data before keyspace truncation
-# or dropping of column families. The STRONGLY advised default of true 
+# or dropping of column families. The STRONGLY advised default of true
 # should be used to provide data safety. If you set this flag to false, you will
 # lose data on truncation or drop.
 # auto_snapshot: true
@@ -434,23 +432,23 @@ commitlog_total_space_in_mb: -1
 # The default timeout for other, miscellaneous operations
 # request_timeout_in_ms: 10000
 
-# Enable or disable inter-node encryption. 
-# You must also generate keys and provide the appropriate key and trust store locations and passwords. 
+# Enable or disable inter-node encryption.
+# You must also generate keys and provide the appropriate key and trust store locations and passwords.
 #
 # The available internode options are : all, none, dc, rack
 # If set to dc scylla  will encrypt the traffic between the DCs
 # If set to rack scylla  will encrypt the traffic between the racks
 #
-# SSL/TLS algorithm and ciphers used can be controlled by 
+# SSL/TLS algorithm and ciphers used can be controlled by
 # the priority_string parameter. Info on priority string
 # syntax and values is available at:
 #   https://gnutls.org/manual/html_node/Priority-Strings.html
 #
-# The require_client_auth parameter allows you to 
-# restrict access to service based on certificate 
-# validation. Client must provide a certificate 
+# The require_client_auth parameter allows you to
+# restrict access to service based on certificate
+# validation. Client must provide a certificate
 # accepted by the used trust store to connect.
-# 
+#
 # server_encryption_options:
 #    internode_encryption: none
 #    certificate: conf/scylla.crt
@@ -496,7 +494,6 @@ commitlog_total_space_in_mb: -1
 # true: relaxed environment checks; performance and reliability may degraade.
 #
 # developer_mode: false
-
 
 # Idle-time background processing
 #

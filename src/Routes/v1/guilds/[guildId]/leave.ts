@@ -45,7 +45,7 @@ export default class LeaveGuild extends Route {
 		const guildMember = (await this.App.cassandra.models.GuildMember.get({
 			guildId: Encryption.encrypt(params.guildId),
 			userId: Encryption.encrypt(user.id),
-			left: false
+			left: false,
 		}))!;
 
 		if (!guildMember) {
@@ -90,7 +90,7 @@ export default class LeaveGuild extends Route {
 			flags: Constants.guildMemberFlags.Left,
 			guildMemberId: guildMember.guildMemberId,
 			roles: [],
-			left: true
+			left: true,
 		});
 
 		await this.App.cassandra.models.User.update({

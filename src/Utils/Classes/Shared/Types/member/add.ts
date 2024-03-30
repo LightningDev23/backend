@@ -4,7 +4,7 @@ export interface GuildMemberAdd {
 		flags: number;
 		joinedAt: string;
 		nickname: string | null;
-		owner: boolean,
+		owner: boolean;
 		roles: string[];
 		userId: string;
 	};

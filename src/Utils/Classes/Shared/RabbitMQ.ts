@@ -10,7 +10,7 @@ import type { MySchema } from "@/Types/JsonSchemaType.ts";
 
 const channels = {
 	// ? { type: ["sub"] } i.e { "channel": ["create", "delete", "update"] } will turn into "channel.create", "channel.delete", "channel.update"
-	channel: ["create", "delete", "update"],
+	channel: ["create", "delete", "update", "test"],
 	user: ["update"],
 	presence: ["update"],
 	message: ["create", "delete", "update", "reported", "typing"],
@@ -20,6 +20,7 @@ const channels = {
 	ban: ["create", "delete"],
 	guildMember: ["add", "remove", "update", "ban", "unban", "kick", "chunk"],
 	sessions: ["create", "delete"],
+	internal: ["routing"],
 } as const;
 
 // basically returns "channel.create" | "channel.delete" etc
@@ -88,16 +89,20 @@ class RabbitMQ {
 		}
 	}
 
-	public send(topic: GetChannelTypes<typeof channels>, data: unknown) {
+	public send(topic: GetChannelTypes<typeof channels>, data: unknown, raw = false) {
 		this.channel.publish(
 			topic,
 			"",
 			Buffer.from(
-				this.compress({
-					data,
-					topic,
-					workerId: this.config.server.workerId,
-				}),
+				this.compress(
+					raw
+						? data
+						: {
+								data,
+								topic,
+								workerId: this.config.server.workerId,
+							},
+				),
 			),
 		);
 	}
@@ -111,11 +116,15 @@ class RabbitMQ {
 	}
 
 	private decompress(data: Buffer) {
-		// eslint-disable-next-line n/no-sync -- theres no other options
-		const decompressed = Bun.gunzipSync(data);
-		const uint8ArrayToString = new TextDecoder().decode(decompressed);
+		try {
+			// eslint-disable-next-line n/no-sync -- theres no other options
+			const decompressed = Bun.gunzipSync(data);
+			const uint8ArrayToString = new TextDecoder().decode(decompressed);
 
-		return JSON.parse(uint8ArrayToString);
+			return JSON.parse(uint8ArrayToString);
+		} catch {
+			return data.toString();
+		}
 	}
 
 	private get url() {

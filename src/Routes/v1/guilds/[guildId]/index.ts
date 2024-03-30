@@ -36,7 +36,7 @@ export default class FetchEditGuild extends Route {
 		query,
 		params,
 		set,
-	}: CreateRoute<"/guilds/:guildId", any, [UserMiddlewareType], any, { include: string; }>) {
+	}: CreateRoute<"/guilds/:guildId", any, [UserMiddlewareType], any, { include: string }>) {
 		const include: ("channels" | "owners" | "roles")[] = query.include
 			? (query.include.split(",") as ("channels" | "owners" | "roles")[])
 			: [];
@@ -70,14 +70,14 @@ export default class FetchEditGuild extends Route {
 
 		const rawChannels = include.includes("channels")
 			? await this.App.cassandra.models.Channel.find({
-				guildId: Encryption.encrypt(params.guildId),
-			})
+					guildId: Encryption.encrypt(params.guildId),
+				})
 			: null;
 
 		const rawRoles = include.includes("roles")
 			? await this.App.cassandra.models.Role.find({
-				guildId: Encryption.encrypt(params.guildId),
-			})
+					guildId: Encryption.encrypt(params.guildId),
+				})
 			: null;
 
 		const rawGuild: rawGuild = {
@@ -228,7 +228,7 @@ export default class FetchEditGuild extends Route {
 		const guildMember = (await this.App.cassandra.models.GuildMember.get({
 			guildId: Encryption.encrypt(params.guildId),
 			userId: Encryption.encrypt(user.id),
-			left: false
+			left: false,
 		}))!;
 
 		if (!guildMember) {

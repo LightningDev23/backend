@@ -38,7 +38,7 @@ const presenceUpdate = (ws: WebSocket, data: unknown) => {
 					sessionId: undefined,
 					current: undefined,
 				})),
-			}
+			},
 		});
 	}
 };

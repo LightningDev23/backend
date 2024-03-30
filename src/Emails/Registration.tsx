@@ -83,8 +83,6 @@ const styles = {
 	},
 } as const;
 
-
-
 const registration = (username: string, verifyUrl: string, deleteAccountUrl: string) => {
 	return (
 		<Html>

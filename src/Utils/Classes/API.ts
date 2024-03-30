@@ -1,6 +1,7 @@
 /* eslint-disable id-length */
 import { join } from "node:path";
 import process from "node:process";
+import { URL } from "node:url";
 import { cors } from "@elysiajs/cors";
 import { serverTiming } from "@elysiajs/server-timing";
 import { Turnstile } from "@kastelll/util";
@@ -10,6 +11,7 @@ import { Elysia } from "elysia";
 import type { Transporter } from "nodemailer";
 import { createTransport } from "nodemailer";
 import type SMTPTransport from "nodemailer/lib/smtp-transport/index";
+import type { InternalRequest } from "@/Types/InternalRoute.ts";
 import App from "./App.ts";
 import errorGen from "./ErrorGen.ts";
 import FileSystemRouter from "./FileSystemRouter.ts";
@@ -34,7 +36,7 @@ class API extends App {
 	> = new Map();
 
 	public router: FileSystemRouter;
-	
+
 	public noReplyEmail!: Transporter<SMTPTransport.SentMessageInfo>;
 
 	public constructor() {
@@ -58,17 +60,16 @@ class API extends App {
 		await super.init();
 
 		this.turnstile = new Turnstile(this.config.server.captchaEnabled, this.config.server.turnstileSecret ?? "secret");
-		
+
 		if (this.config.mailServer?.enabled) {
-			
 			const noReply = this.config.mailServer?.users.find((x) => x.shortCode === "NoReply");
-			
+
 			if (!noReply) {
 				this.logger.error("NoReply user not found in mailServer config");
-				
+
 				process.exit(1);
 			}
-			
+
 			this.noReplyEmail = createTransport({
 				host: noReply.host,
 				port: noReply.port,
@@ -76,8 +77,8 @@ class API extends App {
 				auth: {
 					user: noReply.username,
 					pass: noReply.password,
-				}
-			});			
+				},
+			});
 		}
 
 		this.router.on("reload", async ({ path, type, directory }) => {
@@ -106,7 +107,15 @@ class API extends App {
 		this.elysiaApp
 			.use(
 				cors({
-					allowedHeaders: ["Content-Type", "Authorization", "X-Special-Properties"],
+					allowedHeaders: [
+						"Content-Type",
+						"Authorization",
+						"X-Special-Properties",
+						"Baggage",
+						"sentry-trace",
+						"pragma",
+						"cache-control",
+					],
 					methods: ["GET", "POST", "PATCH", "PUT", "DELETE"],
 					origin: true,
 					maxAge: 600, // 10 minutes
@@ -161,7 +170,7 @@ class API extends App {
 						message: `Could not find route for ${request.method} ${path}`,
 					},
 				});
-				
+
 				set.status = 404;
 
 				return error.toJSON();
@@ -171,6 +180,8 @@ class API extends App {
 
 			if (!route) {
 				this.logger.error(`Could not find route for ${request.method} ${path} but it was successfully matched`);
+
+				set.status = 500;
 
 				return "Internal Server Error :(";
 			}
@@ -195,6 +206,8 @@ class API extends App {
 					},
 				});
 
+				set.status = 405;
+
 				return error.toJSON();
 			}
 
@@ -207,6 +220,8 @@ class API extends App {
 			if (route.routeClass[foundMethod.name] === undefined) {
 				this.logger.error(`Could not find function for ${request.method} ${path} but it was successfully matched`);
 
+				set.status = 500;
+
 				return "Internal Server Error :(";
 			}
 
@@ -216,6 +231,8 @@ class API extends App {
 
 			if (!routeClassFunction) {
 				this.logger.error(`Could not find function for ${request.method} ${path} but it was successfully matched`);
+
+				set.status = 500;
 
 				return "Internal Server Error :(";
 			}
@@ -363,18 +380,18 @@ class API extends App {
 			return null;
 		}
 	}
-	
+
 	public sendEmail(code: "NoReply" | "Support", to: string, subject: string, html: string, text: string) {
 		if (!this.config.mailServer?.enabled) return;
 
 		const user = this.config.mailServer?.users.find((x) => x.shortCode === code);
-		
+
 		if (!user) {
 			this.logger.error(`Could not find user with shortCode ${code}`);
-			
+
 			return;
 		}
-		
+
 		try {
 			void this.noReplyEmail.sendMail({
 				from: `${code === "NoReply" ? "no-reply" : "support"} <${user.username}>`,
@@ -386,6 +403,135 @@ class API extends App {
 		} catch {
 			this.logger.verbose(`Failed to send email to ${to}`);
 		}
+	}
+
+	public async handleRouting(data: InternalRequest): Promise<void> {
+		const apiRoute = `/v${data.version}${data.route}`;
+
+		const matched = this.router.match(apiRoute);
+
+		if (!matched) {
+			const error = errorGen.NotFound();
+
+			this.logger.error(`[INTR] Could not find route for ${data.method} ${apiRoute} (NONCE: ${data.nonce})`);
+
+			error.addError({
+				notFound: {
+					code: "NotFound",
+					message: `Could not find route for ${data.method} ${apiRoute}`,
+				},
+			});
+
+			this.rabbitMQForwarder(
+				"internal.routing",
+				{
+					data: error.toJSON(),
+					nonce: data.nonce,
+					ok: false,
+					status: 404,
+				},
+				true,
+			);
+
+			return;
+		}
+
+		const route = this.routeCache.get(matched.filePath);
+
+		if (!route) {
+			this.logger.error(
+				`[INTR] Could not find route for ${data.method} ${apiRoute} but it was successfully matched (NONCE: ${data.nonce})`,
+			);
+
+			this.rabbitMQForwarder(
+				"internal.routing",
+				{
+					data: "Internal Server Error :(",
+					nonce: data.nonce,
+					ok: false,
+					status: 500,
+				},
+				true,
+			);
+
+			return;
+		}
+
+		this.logger.info(`[INTR] Request to "${route.route}" [${data.method}] (NONCE: ${data.nonce})`);
+
+		const foundMethod = route.routeClass.__methods?.find((method) => method.method === data.method.toLowerCase()) ?? {
+			name: "Request",
+			method: "get",
+		};
+
+		if (!foundMethod) {
+			const error = errorGen.MethodNotAllowed();
+
+			this.logger.error(`[INTR] Method "${data.method}" is not allowed for "${apiRoute}" (NONCE: ${data.nonce})`);
+
+			error.addError({
+				methodNotAllowed: {
+					code: "MethodNotAllowed",
+					message: `Method "${
+						data.method
+					}" is not allowed for "${route.path}", allowed methods are [${route.routeClass.__methods
+						.map((method) => method.method.toUpperCase())
+						.join(", ")}]`,
+				},
+			});
+
+			this.rabbitMQForwarder(
+				"internal.routing",
+				{
+					data: error.toJSON(),
+					nonce: data.nonce,
+					ok: false,
+					status: 405,
+				},
+				true,
+			);
+
+			return;
+		}
+
+		const set = {
+			headers: {},
+			status: 200,
+		};
+
+		const url = new URL(apiRoute, "http://localhost");
+
+		const query = Object.fromEntries(url.searchParams.entries());
+
+		// @ts-expect-error -- I know what I'm doing
+		const requested = await route.routeClass[foundMethod.name]({
+			app: this,
+			body: {},
+			headers: {},
+			params: matched.params,
+			path: apiRoute,
+			query,
+			request: data,
+			set,
+			store: {},
+			ip: "",
+			user: data.user ?? null,
+		});
+
+		this.logger.info(
+			`[INTR] Request to "${route.route}" [${data.method}] finished with status ${set.status} (NONCE: ${data.nonce})`,
+		);
+
+		this.rabbitMQForwarder(
+			"internal.routing",
+			{
+				data: requested,
+				nonce: data.nonce,
+				ok: set.status < 400,
+				status: set.status,
+			},
+			true,
+		);
 	}
 }
 

@@ -128,7 +128,7 @@ const userMiddleware = (options: UserMiddleware) => {
 						"allowedInvites",
 						"customStatus",
 						"navLocation",
-						"emojiPack"
+						"emojiPack",
 					],
 				},
 			);

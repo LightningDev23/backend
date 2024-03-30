@@ -8,6 +8,8 @@ declare const self: Worker;
 self.onmessage = (event: MessageEvent) => {
 	if (event.data.type === "config") {
 		postMessage({ type: "config", data: api.config });
+	} else if (event.data.type === "routing") {
+		void api.handleRouting(event.data.data);
 	}
 };
 

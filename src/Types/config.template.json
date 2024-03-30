@@ -26,7 +26,8 @@
 				"DisableLogin",
 				"DisablePasswordReset",
 				"DisableRegistration",
-				"InviteBasedRegistration"
+				"InviteBasedRegistration",
+				"MulitSocketMode"
 			],
 			"type": "string"
 		},

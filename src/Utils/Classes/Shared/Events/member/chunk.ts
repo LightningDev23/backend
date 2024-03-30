@@ -5,11 +5,7 @@ import type { GuildMemberChunk } from "../../Types/member/chunk.ts";
 const isMemberPayload = (data: unknown): data is GuildMemberChunk => {
 	if (typeof data !== "object" || data === null || data === undefined) return false;
 
-	const items = [
-		"userId",
-		"guildId",
-		"members"
-	];
+	const items = ["userId", "guildId", "members"];
 
 	for (const item of items) {
 		if (!(item in data)) return false;
@@ -24,15 +20,15 @@ const guildMemberChunk = async (ws: WebSocket, data: unknown) => {
 
 		return;
 	}
-	
-    ws.publish(`user:${data.userId}`, {
-        op: opCodes.event,
-        event: "GuildMemberChunk",
-        data: {
-            guildId: data.guildId,
-            members: data.members,
-        },
-    })
+
+	ws.publish(`user:${data.userId}`, {
+		op: opCodes.event,
+		event: "GuildMemberChunk",
+		data: {
+			guildId: data.guildId,
+			members: data.members,
+		},
+	});
 };
 
 export { guildMemberChunk };

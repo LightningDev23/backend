@@ -1,6 +1,6 @@
 export interface GuildDelete {
 	guildId: string;
-	self?: boolean,
+	self?: boolean;
 	unavailable: boolean;
 	userId?: string;
 }

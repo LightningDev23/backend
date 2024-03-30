@@ -88,10 +88,10 @@ export default class IdentifyAndHeartbeat extends Event {
 				event: "heartbeat",
 				data: {
 					sessionId: user.sessionId,
-				}
-			}
-		})
-		
+				},
+			},
+		});
+
 		user.send(
 			{
 				op: opCodes.heartbeatAck,
@@ -216,7 +216,7 @@ export default class IdentifyAndHeartbeat extends Event {
 			const guildMember = await this.App.cassandra.models.GuildMember.get({
 				guildId: Encryption.encrypt(guild.id),
 				userId: Encryption.encrypt(user.id),
-				left: false
+				left: false,
 			});
 
 			if (!guildMember) {
@@ -248,7 +248,10 @@ export default class IdentifyAndHeartbeat extends Event {
 			}
 
 			const first100Members = (
-				await this.App.cassandra.models.GuildMember.find({ guildId: Encryption.encrypt(guild.id), left: false }, { limit: 100 })
+				await this.App.cassandra.models.GuildMember.find(
+					{ guildId: Encryption.encrypt(guild.id), left: false },
+					{ limit: 100 },
+				)
 			).toArray();
 
 			const permCheck = new PermissionHandler(
@@ -364,7 +367,7 @@ export default class IdentifyAndHeartbeat extends Event {
 		});
 
 		await this.App.cache.set(`user:${Encryption.encrypt(user.id)}`, JSON.stringify(presences));
-		
+
 		for (const guild of finishedGuilds) {
 			this.App.publish(
 				`guild:${guild.id}:members`,

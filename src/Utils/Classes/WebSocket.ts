@@ -68,9 +68,9 @@ class WebSocket extends App {
 	> = new Map();
 
 	public clients: Map<string, User> = new Map(); // sessionId -> User
-	
+
 	public disconnectedUsers: Set<string> = new Set(); // sessionId
-	
+
 	public unAuthedUsers: Set<string> = new Set(); // sessionId
 
 	public constructor() {
@@ -91,26 +91,26 @@ class WebSocket extends App {
 		self.onmessage = (event: MessageEvent) => {
 			if (event.data.type === "config") {
 				postMessage({ type: "config", data: this.config });
-				
+
 				return;
 			}
-			
+
 			if (isHeartbeatMessage(event.data)) {
 				const user = this.clients.get(event.data.data.data.sessionId);
-				
+
 				if (!user) return;
-				
+
 				user.close(errorCodes.heartbeatTimeout);
-				
+
 				return;
 			}
 
 			if (!this.isRabbitMessage(event.data)) {
-				this.logger.warn("Invalid RabbitMQ message");
+				this.logger.debug("Invalid RabbitMQ message");
 
 				return;
 			}
-			
+
 			switch (event.data.topic) {
 				case "ban.create": {
 					banCreate(this, event.data.data);
@@ -154,7 +154,7 @@ class WebSocket extends App {
 
 				case "guildMember.add": {
 					void guildMemberAdd(this, event.data.data);
-					
+
 					break;
 				}
 
@@ -258,10 +258,10 @@ class WebSocket extends App {
 
 					break;
 				}
-				
+
 				case "guildMember.chunk": {
 					void guildMemberChunk(this, event.data.data);
-					
+
 					break;
 				}
 
@@ -277,7 +277,8 @@ class WebSocket extends App {
 
 		this.router.on("reload", async ({ path, type, directory }) => {
 			this.logger.verbose(
-				`Reloaded Events due to a ${directory ? "directory" : "file"} (${path}) being ${type === "A" ? "Added" : type === "M" ? "Modified" : type === "D" ? "Removed" : "Unknown"
+				`Reloaded Events due to a ${directory ? "directory" : "file"} (${path}) being ${
+					type === "A" ? "Added" : type === "M" ? "Modified" : type === "D" ? "Removed" : "Unknown"
 				}`,
 			);
 
@@ -407,7 +408,7 @@ class WebSocket extends App {
 							sessionId: newUser.sessionId,
 						},
 					});
-					
+
 					postMessage({
 						type: "heartbeat",
 						data: {
@@ -416,11 +417,10 @@ class WebSocket extends App {
 								interval: newUser.heartbeatInterval,
 								sessionId: newUser.sessionId,
 							},
-						}
-					})
+						},
+					});
 				},
 				close: async (ws, code) => {
-					
 					postMessage({
 						type: "heartbeat",
 						data: {
@@ -428,9 +428,9 @@ class WebSocket extends App {
 							data: {
 								sessionId: ws.data.user.sessionId,
 							},
-						}
-					})
-					
+						},
+					});
+
 					if (ws.data.user.expectingClose) {
 						if (!ws.data.user.resumeable) {
 							this.clients.delete(ws.data.user.sessionId);
@@ -444,18 +444,24 @@ class WebSocket extends App {
 							ws.data.user.resumeable = true;
 						}
 					}
-					
+
 					this.disconnectedUsers.add(ws.data.user.sessionId);
-					
+
 					if (ws.data.user.guilds && ws.data.user.fetchedUser) {
 						const got = await this.cache.get(`user:${Encryption.encrypt(ws.data.user.id)}`);
 
 						const parsed = JSON.parse(
 							(got as string) ??
-							`[{ "sessionId": null, "since": null, "state": null, "type": ${presenceTypes.custom}, "status": ${statusTypes.offline} }]`,
-						) as { sessionId: string | null; since: number | null; state: string | null; status: number; type: number; }[];
+								`[{ "sessionId": null, "since": null, "state": null, "type": ${presenceTypes.custom}, "status": ${statusTypes.offline} }]`,
+						) as {
+							sessionId: string | null;
+							since: number | null;
+							state: string | null;
+							status: number;
+							type: number;
+						}[];
 
-						const filtered = parsed.filter((prec) => prec.sessionId !== ws.data.user.sessionId);
+						let filtered = parsed.filter((prec) => prec.sessionId !== ws.data.user.sessionId);
 
 						if (filtered.length === 0) {
 							filtered.push({
@@ -465,6 +471,14 @@ class WebSocket extends App {
 								status: statusTypes.offline,
 								type: presenceTypes.custom,
 							});
+						}
+
+						if (filtered.filter((prec) => prec.sessionId === null).length > 1) {
+							filtered = filtered.filter((prec) => prec.sessionId !== null);
+						}
+
+						if (!this.config.server.features.includes("MulitSocketMode")) {
+							filtered = filtered.filter((prec) => this.clients.has(prec.sessionId!));
 						}
 
 						for (const guild of ws.data.user.guilds) {
@@ -497,6 +511,8 @@ class WebSocket extends App {
 			hostname: "0.0.0.0",
 			fetch: (request, server) => {
 				if (this.clients.size >= Number(this.config.ws.maxConnections)) {
+					this.logger.debug("Too many connections");
+
 					return new Response("Too many connections");
 				}
 
@@ -505,6 +521,8 @@ class WebSocket extends App {
 				const requestsByIp = Array.from(this.clients.values()).filter((user) => user.ip === ip && ip !== "");
 
 				if (requestsByIp.length >= Number(this.config.ws.maxConnectionsPerIp)) {
+					this.logger.debug(`Too many connections from ${ip}`);
+
 					return new Response("Too many connections from your IP");
 				}
 
@@ -548,7 +566,7 @@ class WebSocket extends App {
 		setInterval(async () => {
 			for (const sessionId of this.disconnectedUsers.values()) {
 				const user = this.clients.get(sessionId);
-				
+
 				if (!user) {
 					this.disconnectedUsers.delete(sessionId);
 
@@ -568,13 +586,13 @@ class WebSocket extends App {
 					if (user.token && user.settings.status === "online") await user.setStatus("offline");
 
 					const foundTopics = Array.from(this.topics.entries()).filter(([, users]) => users.has(user));
-					
+
 					for (const [topic, users] of foundTopics) {
 						users.delete(user);
-						
+
 						if (users.size === 0) this.topics.delete(topic);
 					}
-					
+
 					continue;
 				}
 
@@ -583,12 +601,12 @@ class WebSocket extends App {
 					this.disconnectedUsers.delete(sessionId);
 
 					if (user.token && user.settings.status !== "offline") await user.setStatus("offline");
-					
+
 					const foundTopics = Array.from(this.topics.entries()).filter(([, users]) => users.has(user));
-					
+
 					for (const [topic, users] of foundTopics) {
 						users.delete(user);
-						
+
 						if (users.size === 0) this.topics.delete(topic);
 					}
 				}
@@ -600,22 +618,22 @@ class WebSocket extends App {
 		setInterval(() => {
 			for (const sessionId of this.unAuthedUsers.values()) {
 				const user = this.clients.get(sessionId);
-				
+
 				if (!user) {
 					this.unAuthedUsers.delete(sessionId);
 
 					continue;
 				}
-				
+
 				if (user.token) {
 					this.unAuthedUsers.delete(sessionId);
-					
+
 					continue;
 				}
 
 				if (user.openedAt + Number(this.config.ws.intervals.closeTimeout.leeway) < Date.now()) {
 					user.close(errorCodes.unauthorized);
-					
+
 					this.unAuthedUsers.delete(sessionId);
 				}
 			}
@@ -625,7 +643,7 @@ class WebSocket extends App {
 	private async loadEvents(path: string) {
 		try {
 			// this is a hack to make sure it doesn't cache the file
-			const eventClass = (await import(`${path}?t=${Date.now()}`)) as { default: typeof EventBuilder; };
+			const eventClass = (await import(`${path}?t=${Date.now()}`)) as { default: typeof EventBuilder };
 
 			if (!eventClass.default) {
 				this.logger.warn(`Skipping ${path} as it does not have a default export`);
@@ -683,21 +701,21 @@ class WebSocket extends App {
 
 	public isRabbitMessage(
 		data: unknown,
-	): data is { data: unknown; topic: GetChannelTypes<typeof channels>; workerId: number; } {
+	): data is { data: unknown; topic: GetChannelTypes<typeof channels>; workerId: number } {
 		if (typeof data !== "object" || !data) {
-			this.logger.warn("data is not an object");
+			this.logger.debug("data is not an object");
 
 			return false;
 		}
 
 		if (!("workerId" in data)) {
-			this.logger.warn("workerId is not in data");
+			this.logger.debug("workerId is not in data");
 
 			return false;
 		}
 
 		if (!("topic" in data)) {
-			this.logger.warn("topic is not in data");
+			this.logger.debug("topic is not in data");
 
 			return false;
 		}
@@ -705,7 +723,7 @@ class WebSocket extends App {
 		return "data" in data;
 	}
 
-	public isCorrectPayload(data: unknown): data is { data: unknown; op: number; } {
+	public isCorrectPayload(data: unknown): data is { data: unknown; op: number } {
 		if (typeof data !== "object" || !data) {
 			this.logger.warn("data is not an object");
 
@@ -731,7 +749,7 @@ class WebSocket extends App {
 		}
 
 		const filtered = Array.from(users).filter((user) => !ignoreUsers.includes(user));
-		
+
 		for (const user of filtered) {
 			user.send(typeof data === "object" ? { ...data, seq: user.sequence } : data);
 		}
@@ -830,7 +848,7 @@ class WebSocket extends App {
 		const users = this.topics.get(topic);
 
 		if (!users) return;
-		
+
 		if (Array.isArray(user)) {
 			for (const u of user) {
 				users.delete(u);
@@ -838,7 +856,6 @@ class WebSocket extends App {
 		} else {
 			users.delete(user);
 		}
-
 
 		if (users.size === 0) this.topics.delete(topic);
 

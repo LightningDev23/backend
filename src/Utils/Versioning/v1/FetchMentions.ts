@@ -1,6 +1,6 @@
-// channels are <#id>
-// roles are <@&id>
-// users are <@!?id>
+// ? channels are <#id>
+// ? roles are <@&id>
+// ? users are <@!?id>
 
 export const fetchMentions = (
 	content: string,

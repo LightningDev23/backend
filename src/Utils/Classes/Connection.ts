@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import fs from "node:fs/promises";
 import path from "node:path";
+import process from "node:process"
 import cassandra, { mapping, type ClientOptions } from "@kastelapp/cassandra-driver";
 import type {
 	Ban,
@@ -134,6 +135,19 @@ class Connection extends EventEmitter {
 
 		this.mapper = new mapping.Mapper(this.client, this.mappingOptions);
 
+		const fors = this.mapper.forModel<User>("User");
+
+		if (process.env.NODE_ENV === "development") {
+			// eslint-disable-next-line @typescript-eslint/unbound-method
+			const oldUpdate = fors.update;
+
+			fors.update = async (doc, docInfo, executionOptions) => {
+				console.log("UPDATING", doc, docInfo, executionOptions);
+
+				return oldUpdate.bind(fors)(doc, docInfo, executionOptions);
+			};
+		}
+
 		this.models = {
 			Ban: this.mapper.forModel<Ban>("Ban"),
 			Bot: this.mapper.forModel<Bot>("Bot"),
@@ -150,7 +164,7 @@ class Connection extends EventEmitter {
 			PermissionOverride: this.mapper.forModel<PermissionOverride>("PermissionOverride"),
 			Role: this.mapper.forModel<Role>("Role"),
 			Settings: this.mapper.forModel<Settings>("Settings"),
-			User: this.mapper.forModel<User>("User"),
+			User: fors,
 			VerificationLink: this.mapper.forModel<VerificationLink>("VerificationLink"),
 			Webhook: this.mapper.forModel<Webhook>("Webhook"),
 			PlatformInvite: this.mapper.forModel<PlatformInvite>("PlatformInvite"),

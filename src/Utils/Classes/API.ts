@@ -80,7 +80,7 @@ class API extends App {
 				},
 			});
 		}
-
+		
 		this.router.on("reload", async ({ path, type, directory }) => {
 			this.logger.verbose(
 				`Reloaded Routes due to a ${directory ? "directory" : "file"} (${path}) being ${

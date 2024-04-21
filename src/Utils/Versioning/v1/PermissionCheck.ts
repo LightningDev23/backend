@@ -95,7 +95,7 @@ class PermissionHandler {
 	}
 
 	/**
-	 *? Checks if you have permissiosn to a specific channel
+	 *? Checks if you have permission to a specific channel
 	 */
 	public hasChannelPermission(channelId: string, permission: PermissionKey[]): boolean {
 		const channel = this.channels.find((Channel) => Channel.id === channelId);

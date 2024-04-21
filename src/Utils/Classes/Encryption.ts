@@ -15,6 +15,8 @@ class Encryption {
 
 	public static encrypt(data: string): string {
 		try {
+			if (this.isEncrypted(data)) return data;
+
 			const cipher = crypto.createCipheriv(this.config.algorithm, this.config.securityKey, this.config.initVector);
 
 			const dd = {
@@ -34,7 +36,7 @@ class Encryption {
 			const cleaned = Encryption.cleanData(decrypted);
 
 			if (raw) return cleaned;
-
+			
 			// ? THIS, is the most TERRIBLE fix I've done, the issue here is that for some reason, some ids get treated as being encrypted
 			// ? So, if cleaned.data does not exist, but cleaned does, and its a valid snowflake, just return the data - DarkerInk 3/12/2024
 			if (!cleaned.data && cleaned && App.snowflake.validate(data)) return data;
@@ -49,9 +51,12 @@ class Encryption {
 
 	public static isEncrypted(item: string): boolean {
 		try {
-			Encryption.decrypt(item);
-
-			return true;
+			const decipher = crypto.createDecipheriv(this.config.algorithm, this.config.securityKey, this.config.initVector);
+			const decrypted = decipher.update(item, "hex", "utf8") + decipher.final("utf8");
+			
+			const cleaned = Encryption.cleanData(decrypted);
+			
+			return cleaned?.data !== undefined;
 		} catch {
 			return false;
 		}

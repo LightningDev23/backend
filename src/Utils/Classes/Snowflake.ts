@@ -85,16 +85,20 @@ class Snowflake {
 	}
 
 	public validate(snowflake: string): boolean {
-		const snowflakeBigInt = BigInt(snowflake);
-
-		if (snowflakeBigInt < 0n) return false;
-
-		const snowflakeJson = this.json(snowflake);
-
-		if (snowflakeJson.workerId > maxWorkerId) return false;
-		if (snowflakeJson.processId > maxProcessId) return false;
-
-		return snowflakeJson.increment <= maxIncrement;
+		try {
+			const snowflakeBigInt = BigInt(snowflake);
+	
+			if (snowflakeBigInt < 0n) return false;
+	
+			const snowflakeJson = this.json(snowflake);
+	
+			if (snowflakeJson.workerId > maxWorkerId) return false;
+			if (snowflakeJson.processId > maxProcessId) return false;
+	
+			return snowflakeJson.increment <= maxIncrement;
+		} catch {
+			return false;
+		}
 	}
 }
 

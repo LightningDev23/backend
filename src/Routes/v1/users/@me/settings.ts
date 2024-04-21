@@ -100,6 +100,13 @@ export default class UserSettings extends Route {
 							message: "The guild you provided was invalid, you are not in that guild",
 						},
 					});
+				} else if (guild.position < 0 || guild.position > user.guilds.length) {
+					failedToUpdateSettigns.addError({
+						[`guildOrder.${guild.guildId}`]: {
+							code: "InvalidPosition",
+							message: "The position you provided was invalid",
+						},
+					});
 				}
 			}
 

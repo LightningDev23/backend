@@ -235,6 +235,11 @@ export default class DeleteEditGetMessage extends Route {
 			});
 		}
 
+		this.App.rabbitMQForwarder("message.delete", {
+			channelId: params.channelId,
+			messageId: params.messageId,
+		})
+		
 		set.status = 204;
 
 		// eslint-disable-next-line sonarjs/no-redundant-jump, no-useless-return

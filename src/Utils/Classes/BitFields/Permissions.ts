@@ -34,8 +34,8 @@ class Permissions {
 	}
 
 	public has<T extends PermissionKey, HT extends hasType>(perms: T[], ignoreAdmin?: boolean, type?: HT): boolean {
-		// @ts-expect-error idc
 		if (
+			// @ts-expect-error idc
 			perms.includes("Administrator") &&
 			!ignoreAdmin &&
 			this.bits.some(([bits]) => BigInt(bits) === permissions.Administrator.int)

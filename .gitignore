@@ -57,3 +57,4 @@ src/configs/*
 !src/configs/scylladb
 
 src/migrate.ts
+src/fixtest.ts

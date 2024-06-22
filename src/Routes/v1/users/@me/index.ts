@@ -78,6 +78,8 @@ export default class FetchPatch extends Route {
 		const flags = new FlagFields(fetchedUser.flags, fetchedUser?.publicFlags ?? 0);
 
 		const include = query.include?.split(",") ?? [];
+		
+		console.log(user.settings)
 
 		const userObject: User = {
 			id: fetchedUser.userId,
@@ -94,7 +96,23 @@ export default class FetchPatch extends Route {
 			mfaVerified: flags.has("TwoFaVerified"),
 		};
 
-		if (include.includes("bio")) userObject.bio = user.settings?.bio ?? null;
+		if (include.includes("bio")) {
+			if (!user.settings?.bio) {
+				const settings = await this.App.cassandra.models.Settings.get(
+					{
+						userId: Encryption.encrypt(user.id),
+					},
+					{
+						fields: ["bio"],
+					},
+				);
+				
+				if (settings) user.settings.bio = Encryption.decrypt(settings.bio ?? "");
+			}
+			
+			userObject.bio = user.settings?.bio ?? null;
+		}
+
 		if (include.includes("invites")) userObject.allowedInvites = user.settings?.allowedInvites ?? null;
 
 		return Encryption.completeDecryption(userObject);

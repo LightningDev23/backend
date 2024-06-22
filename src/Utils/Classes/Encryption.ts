@@ -30,6 +30,8 @@ class Encryption {
 	}
 
 	public static decrypt(data: string, raw = false): string {
+		if (data === "" || data === null) return data;
+		
 		try {
 			const decipher = crypto.createDecipheriv(this.config.algorithm, this.config.securityKey, this.config.initVector);
 			const decrypted = decipher.update(data, "hex", "utf8") + decipher.final("utf8");

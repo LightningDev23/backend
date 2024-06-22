@@ -78,7 +78,7 @@ export default class FetchPatch extends Route {
 		const flags = new FlagFields(fetchedUser.flags, fetchedUser?.publicFlags ?? 0);
 
 		const include = query.include?.split(",") ?? [];
-
+		
 		const userObject: User = {
 			id: fetchedUser.userId,
 			email: fetchedUser.email, // TODO: If its oauth, check if they got the user.indentity.email scope
@@ -248,7 +248,7 @@ export default class FetchPatch extends Route {
 		if (body.bio !== undefined) {
 			await this.App.cassandra.models.Settings.update({
 				userId: Encryption.encrypt(user.id),
-				bio: Encryption.encrypt(body.bio ?? ""),
+				bio: body.bio ? Encryption.encrypt(body.bio) : null,
 			});
 
 			user.settings.bio = body.bio;
@@ -305,10 +305,10 @@ export default class FetchPatch extends Route {
 		// @ts-expect-error -- We dont need to add the other stuff (since its not being used anyways)
 		const fetched = await this.getFetch({
 			user,
-			query: body.bio ? { include: "bio" } : {},
+			query: body.bio === undefined ? {} : { include: "bio" },
 			set,
 		});
-
+		
 		if (typeof fetched === "string") return fetched;
 
 		return {

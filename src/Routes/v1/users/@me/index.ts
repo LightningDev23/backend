@@ -63,7 +63,7 @@ export default class FetchPatch extends Route {
 		user,
 		query,
 		set,
-	}: CreateRoute<"/@me", any, [UserMiddlewareType], any, { include?: string }>) {
+	}: CreateRoute<"/@me", any, [UserMiddlewareType], any, { include?: string; }>) {
 		const fetchedUser = await this.App.cassandra.models.User.get({
 			userId: Encryption.encrypt(user.id),
 		});
@@ -78,8 +78,6 @@ export default class FetchPatch extends Route {
 		const flags = new FlagFields(fetchedUser.flags, fetchedUser?.publicFlags ?? 0);
 
 		const include = query.include?.split(",") ?? [];
-		
-		console.log(user.settings)
 
 		const userObject: User = {
 			id: fetchedUser.userId,
@@ -97,20 +95,16 @@ export default class FetchPatch extends Route {
 		};
 
 		if (include.includes("bio")) {
-			if (!user.settings?.bio) {
-				const settings = await this.App.cassandra.models.Settings.get(
-					{
-						userId: Encryption.encrypt(user.id),
-					},
-					{
-						fields: ["bio"],
-					},
-				);
-				
-				if (settings) user.settings.bio = Encryption.decrypt(settings.bio ?? "");
-			}
-			
-			userObject.bio = user.settings?.bio ?? null;
+			const settings = await this.App.cassandra.models.Settings.get(
+				{
+					userId: Encryption.encrypt(user.id),
+				},
+				{
+					fields: ["bio"],
+				},
+			);
+
+			if (settings) userObject.bio = Encryption.decrypt(settings.bio ?? "") || null;
 		}
 
 		if (include.includes("invites")) userObject.allowedInvites = user.settings?.allowedInvites ?? null;
@@ -205,7 +199,7 @@ export default class FetchPatch extends Route {
 			}
 		}
 
-		if (body.globalNickname) stuffToUpdate.globalNickname = Encryption.encrypt(body.globalNickname);
+		if (body.globalNickname !== undefined) stuffToUpdate.globalNickname = Encryption.encrypt(body.globalNickname ?? "");
 
 		if (failedToUpdateSelf.hasErrors()) {
 			set.status = 400;
@@ -251,10 +245,10 @@ export default class FetchPatch extends Route {
 			stuffToUpdate.token = newToken;
 		}
 
-		if (body.bio) {
+		if (body.bio !== undefined) {
 			await this.App.cassandra.models.Settings.update({
 				userId: Encryption.encrypt(user.id),
-				bio: Encryption.encrypt(body.bio),
+				bio: Encryption.encrypt(body.bio ?? ""),
 			});
 
 			user.settings.bio = body.bio;
@@ -288,7 +282,7 @@ export default class FetchPatch extends Route {
 			stuffToUpdate.phoneNumber = Encryption.encrypt(body.phoneNumber);
 		}
 
-		if (Object.keys(stuffToUpdate).length === 0 && !body.bio) {
+		if (Object.keys(stuffToUpdate).length === 0 && body.bio === undefined) {
 			set.status = 400;
 
 			failedToUpdateSelf.addError({

@@ -272,6 +272,7 @@ export default class FetchJoinInvite extends Route {
 					userId: user.id,
 					guildId: inviteExists.guildId,
 					left: true,
+					guildMemberId: member.guildMemberId,
 				});
 			}
 		}

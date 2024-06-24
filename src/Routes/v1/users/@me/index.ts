@@ -199,7 +199,7 @@ export default class FetchPatch extends Route {
 			}
 		}
 
-		if (body.globalNickname !== undefined) stuffToUpdate.globalNickname = Encryption.encrypt(body.globalNickname ?? "");
+		if (body.globalNickname !== undefined) stuffToUpdate.globalNickname = body.globalNickname ? Encryption.encrypt(body.globalNickname) : null
 
 		if (failedToUpdateSelf.hasErrors()) {
 			set.status = 400;

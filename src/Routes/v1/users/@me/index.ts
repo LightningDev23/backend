@@ -310,6 +310,8 @@ export default class FetchPatch extends Route {
 		});
 		
 		if (typeof fetched === "string") return fetched;
+		
+		this.App.rabbitMQForwarder("user.update", fetched)
 
 		return {
 			...fetched,

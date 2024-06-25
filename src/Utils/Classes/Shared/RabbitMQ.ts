@@ -21,6 +21,7 @@ const channels = {
 	guildMember: ["add", "remove", "update", "ban", "unban", "kick", "chunk"],
 	sessions: ["create", "delete"],
 	internal: ["routing"],
+	relationships: ["create", "update", "delete"]
 } as const;
 
 // basically returns "channel.create" | "channel.delete" etc

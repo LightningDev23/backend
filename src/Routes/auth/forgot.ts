@@ -74,7 +74,7 @@ export default class ForgotPassword extends Route {
 			},
 		);
 
-		this.App.sendEmail("NoReply", body.email, "Reset your password", renderedEmail, renderedText);
+		void this.App.sendEmail("NoReply", body.email, "Reset your password", renderedEmail, renderedText);
 
 		set.status = 204;
 	}

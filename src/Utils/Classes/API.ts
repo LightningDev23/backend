@@ -381,7 +381,7 @@ class API extends App {
 		}
 	}
 
-	public sendEmail(code: "NoReply" | "Support", to: string, subject: string, html: string, text: string) {
+	public async sendEmail(code: "NoReply" | "Support", to: string, subject: string, html: string, text: string) {
 		if (!this.config.mailServer?.enabled) return;
 
 		const user = this.config.mailServer?.users.find((x) => x.shortCode === code);
@@ -393,7 +393,7 @@ class API extends App {
 		}
 
 		try {
-			void this.noReplyEmail.sendMail({
+			await this.noReplyEmail.sendMail({
 				from: `${code === "NoReply" ? "no-reply" : "support"} <${user.username}>`,
 				to,
 				subject,

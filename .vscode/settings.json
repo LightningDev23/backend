@@ -12,5 +12,6 @@
 	},
 	"files.insertFinalNewline": true,
 	"files.eol": "\n",
-	"npm.packageManager": "bun"
+	"npm.packageManager": "bun",
+	"typescript.tsdk": "node_modules/typescript/lib"
 }

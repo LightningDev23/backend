@@ -169,6 +169,12 @@ const errorGen = {
 	ServiceUnavailable: () => {
 		return new HTTPErrors(5_000);
 	},
+	/*
+	 * If the user alrady has a relationship with the user
+	 */
+	RelationshipAlreadyExists: () => {
+		return new HTTPErrors(4_027);
+	}
 };
 
 export default errorGen;

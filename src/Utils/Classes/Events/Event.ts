@@ -45,4 +45,4 @@ interface Event extends Decorators {}
 
 export default Event;
 
-export { Event };
+export type { Event };

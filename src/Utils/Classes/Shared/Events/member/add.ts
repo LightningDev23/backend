@@ -5,12 +5,16 @@ import type WebSocket from "@/Utils/Classes/WebSocket";
 import type { GuildMemberAdd } from "../../Types/member/add";
 
 const isMemberPayload = (data: unknown): data is GuildMemberAdd => {
-	if (typeof data !== "object" || data === null || data === undefined) return false;
+	if (typeof data !== "object" || data === null || data === undefined) {
+		return false;
+	}
 
 	const items = ["userId", "guildId", "member"];
 
 	for (const item of items) {
-		if (!(item in data)) return false;
+		if (!(item in data)) {
+			return false;
+		}
 	}
 
 	return true;

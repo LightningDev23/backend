@@ -1,4 +1,3 @@
-/* eslint-disable id-length */
 import { join } from "node:path";
 import process from "node:process";
 import { URL } from "node:url";
@@ -80,7 +79,7 @@ class API extends App {
 				},
 			});
 		}
-		
+
 		this.router.on("reload", async ({ path, type, directory }) => {
 			this.logger.verbose(
 				`Reloaded Routes due to a ${directory ? "directory" : "file"} (${path}) being ${
@@ -264,7 +263,9 @@ class API extends App {
 				return error.toJSON();
 			}
 
-			if (this.args.includes("debug")) this.logger.startTimer(`[Request] Middleware ${snf}`);
+			if (this.args.includes("debug")) {
+				this.logger.startTimer(`[Request] Middleware ${snf}`);
+			}
 
 			if (middleware && middleware.length > 0) {
 				for (const middle of middleware) {
@@ -293,8 +294,12 @@ class API extends App {
 				}
 			}
 
-			if (this.args.includes("debug")) this.logger.stopTimer(`[Request] Middleware ${snf}`);
-			if (this.args.includes("debug")) this.logger.startTimer(`[Request] Route ${snf}`);
+			if (this.args.includes("debug")) {
+				this.logger.stopTimer(`[Request] Middleware ${snf}`);
+			}
+			if (this.args.includes("debug")) {
+				this.logger.startTimer(`[Request] Route ${snf}`);
+			}
 
 			const requested = (await routeClassFunction({
 				app: this,
@@ -327,7 +332,9 @@ class API extends App {
 				}
 			}
 
-			if (this.args.includes("debug")) this.logger.stopTimer(`[Request] Route ${snf}`);
+			if (this.args.includes("debug")) {
+				this.logger.stopTimer(`[Request] Route ${snf}`);
+			}
 
 			this.logger.info(`Request to "${route.route}" [${request.method}] finished with status ${set.status}`);
 
@@ -335,8 +342,11 @@ class API extends App {
 		});
 
 		this.elysiaApp.listen(this.config.server.port, () => {
-			if (isMainThread) this.logger.info(`Listening on port ${this.config.server.port}`);
-			else postMessage({ type: "ready", data: { port: this.config.server.port } });
+			if (isMainThread) {
+				this.logger.info(`Listening on port ${this.config.server.port}`);
+			} else {
+				postMessage({ type: "ready", data: { port: this.config.server.port } });
+			}
 		});
 	}
 
@@ -382,7 +392,9 @@ class API extends App {
 	}
 
 	public async sendEmail(code: "NoReply" | "Support", to: string, subject: string, html: string, text: string) {
-		if (!this.config.mailServer?.enabled) return;
+		if (!this.config.mailServer?.enabled) {
+			return;
+		}
 
 		const user = this.config.mailServer?.users.find((x) => x.shortCode === code);
 

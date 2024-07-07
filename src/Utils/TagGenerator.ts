@@ -15,7 +15,9 @@ const tagGenerator = (tags: (number | string)[]): string | null => {
 
 	existingTags.add(0);
 
-	if (existingTags.size >= 9_999) return null;
+	if (existingTags.size >= 9_999) {
+		return null;
+	}
 
 	const missingTags = generateMissingNumbers(existingTags);
 
@@ -25,9 +27,13 @@ const tagGenerator = (tags: (number | string)[]): string | null => {
 const tagValidator = (originalTag: string, newTag: number | string): string => {
 	const fixedTag = newTag.toString();
 
-	if (fixedTag.length !== 4) return originalTag;
+	if (fixedTag.length !== 4) {
+		return originalTag;
+	}
 
-	if (fixedTag === "0000") return originalTag;
+	if (fixedTag === "0000") {
+		return originalTag;
+	}
 
 	return fixedTag;
 };

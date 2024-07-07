@@ -78,7 +78,9 @@ export default class IdentifyAndHeartbeat extends Event {
 		// 	return;
 		// }
 
-		if (user.lastHeartbeat + 10_000 > Date.now()) return; // ? if the last heartbeat was less than 10 seconds ago, ignore it
+		if (user.lastHeartbeat + 10_000 > Date.now()) {
+			return; // ? if the last heartbeat was less than 10 seconds ago, ignore it
+		}
 
 		user.lastHeartbeat = Date.now();
 
@@ -108,7 +110,9 @@ export default class IdentifyAndHeartbeat extends Event {
 	public async identify(user: User, data: Infer<typeof identifyData>) {
 		const authed = await user.authenticate(data.token);
 
-		if (!authed) return; // ? nothing else to do
+		if (!authed) {
+			return; // ? nothing else to do
+		}
 
 		user.metadata = data.meta;
 
@@ -288,8 +292,9 @@ export default class IdentifyAndHeartbeat extends Event {
 					user.subscribe(`channel:messages:${channel.id}:pins`);
 				}
 
-				if (permCheck.hasChannelPermission(channel.id, ["ViewChannels", "ViewMessageHistory"]))
+				if (permCheck.hasChannelPermission(channel.id, ["ViewChannels", "ViewMessageHistory"])) {
 					user.subscribe(`channel:messages:${channel.id}:typing`); // ? can only see typing events if they can see the channel and view messages
+				}
 
 				user.subscribe(`channel:${channel.id}`);
 			}

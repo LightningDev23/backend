@@ -38,18 +38,24 @@ class IpUtils {
 	public static getIp(req: Request, server: Server | null) {
 		const rqIp = server?.requestIP(req)?.address;
 
-		if (req.headers.get("x-forwarded-for")) return req.headers.get("x-forwarded-for")?.split(",")[0];
+		if (req.headers.get("x-forwarded-for")) {
+			return req.headers.get("x-forwarded-for")?.split(",")[0];
+		}
 
 		let clientIp: string | null | undefined = null;
 
 		for (const header of headersToCheck) {
 			clientIp = req.headers.get(header);
 
-			if (clientIp) break;
+			if (clientIp) {
+				break;
+			}
 		}
 
 		if (!clientIp) {
-			if (rqIp) return rqIp;
+			if (rqIp) {
+				return rqIp;
+			}
 
 			return null;
 		}

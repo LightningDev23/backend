@@ -1,4 +1,3 @@
-/* eslint-disable valid-typeof */
 // ? Basically a copy of zod
 // ! this is the file we don't talk about
 // TODO: rewrite this (someone else do it pwease >>:c)
@@ -238,32 +237,37 @@ const validate =
 
 		// if value exists and is not undefined, check if it is the correct type
 		if (value !== undefined) {
-			if (type === "any") return { valid: true, error: null };
+			if (type === "any") {
+				return { valid: true, error: null };
+			}
 
-			if (type === "snowflake")
+			if (type === "snowflake") {
 				return {
 					valid: typeof value === "string" && App.snowflake.validate(value),
 					error: "{key} is not a valid snowflake.",
 				};
+			}
 
 			if (type === "number") {
 				const isNumber = typeof value === "number";
 
-				if (!isNumber || Number.isNaN(value))
+				if (!isNumber || Number.isNaN(value)) {
 					return {
 						valid: false,
 						error: "{key} is not a number.",
 					};
+				}
 
 				const error = `{key} was expected to be between ${min === -1 ? "0" : min} and ${
 					max === -1 ? "infinity" : max
 				}, but received ${value}`;
 
-				if (min > -1 && value < min)
+				if (min > -1 && value < min) {
 					return {
 						valid: false,
 						error,
 					};
+				}
 
 				return {
 					valid: !(max > -1 && value > max),
@@ -279,29 +283,32 @@ const validate =
 					};
 				}
 
-				if (typeof value !== "string")
+				if (typeof value !== "string") {
 					return {
 						valid: false,
 						error: `{key} was expected to be a string, but received ${typeof value}`,
 					};
+				}
 
 				const newValue = value.trim();
 
-				if (regex && !regex.test(newValue))
+				if (regex && !regex.test(newValue)) {
 					return {
 						valid: false,
 						error: "{key} was expected to match a specific regex, but did not.",
 					};
+				}
 
 				const error = `{key} was expected to be between ${min === -1 ? "0" : min} and ${
 					max === -1 ? "infinity" : max
 				} characters, but received ${newValue.length}`;
 
-				if (min > -1 && newValue.length < min)
+				if (min > -1 && newValue.length < min) {
 					return {
 						valid: false,
 						error,
 					};
+				}
 
 				return {
 					valid: !(max > -1 && newValue.length > max),
@@ -310,26 +317,29 @@ const validate =
 			}
 
 			if (type === "array") {
-				if (!Array.isArray(value))
+				if (!Array.isArray(value)) {
 					return {
 						valid: false,
 						error: "{key} was expected to be an array, but received unknown",
 					};
+				}
 
 				const error = `{key} was expected to be between ${min === -1 ? "0" : min} and ${
 					max === -1 ? "infinity" : max
 				} items, but received ${value.length}`;
 
-				if (min > -1 && value.length < min)
+				if (min > -1 && value.length < min) {
 					return {
 						valid: false,
 						error,
 					};
-				if (max > -1 && value.length > max)
+				}
+				if (max > -1 && value.length > max) {
 					return {
 						valid: false,
 						error,
 					};
+				}
 
 				if (items) {
 					const errors = [];
@@ -338,7 +348,7 @@ const validate =
 							// @ts-expect-error -- yeah yeah
 							const validated = data.validate(item[key]);
 
-							if (!validated.valid)
+							if (!validated.valid) {
 								errors.push({
 									valid: validated.valid as boolean,
 									error: validated.error ? (validated.error.replace("{key}", key) as string) : null,
@@ -346,6 +356,7 @@ const validate =
 									pos: value.indexOf(item),
 									multiErrors: validated.multiErrors,
 								});
+							}
 						}
 					}
 
@@ -363,36 +374,39 @@ const validate =
 			}
 
 			if (type === "enum") {
-				if (!values)
+				if (!values) {
 					return {
 						valid: false,
 						error: "{key} was expected to be an enum, but no values were provided. (Internal server error)",
 					};
+				}
 
-				if (!isarray)
+				if (!isarray) {
 					return {
 						valid: values.includes(value as E[number]),
 						error: `{key} was expected to be one of the following "${values.join(", ")}", but received ${
-							// eslint-disable-next-line @typescript-eslint/no-base-to-string
 							typeof (value as E[number]) === "object" ? "object" : value
 						}`,
 					};
+				}
 
-				if (!Array.isArray(value))
+				if (!Array.isArray(value)) {
 					return {
 						valid: false,
 						error: "{key} was expected to be an array, but received unknown",
 					};
+				}
 
 				for (const val of value) {
-					if (!values.includes(val as E[number]))
+					if (!values.includes(val as E[number])) {
 						return {
 							valid: false,
-							// eslint-disable-next-line @typescript-eslint/no-base-to-string
+
 							error: `{key} was expected to be one of the following "${values.join(", ")}", but received ${
 								typeof (val as E[number]) === "object" ? "object" : val
 							}`,
 						};
+					}
 				}
 
 				return {
@@ -406,17 +420,19 @@ const validate =
 				// obj: { item: BodyValidator }
 				const errors = [];
 
-				if (!objecttype)
+				if (!objecttype) {
 					return {
 						valid: false,
 						error: "{key} was expected to be an object, but no values were provided. (Internal server error)",
 					};
+				}
 
-				if (typeof value !== "object" || Array.isArray(value))
+				if (typeof value !== "object" || Array.isArray(value)) {
 					return {
 						valid: false,
 						error: "{key} was expected to be an object, but received unknown",
 					};
+				}
 
 				if (objecttype === "keyof") {
 					for (const [key, vv] of Object.entries(value)) {
@@ -424,13 +440,14 @@ const validate =
 							// @ts-expect-error -- yeah yeah
 							const validated = v.validate(vv[k]);
 
-							if (!validated.valid)
+							if (!validated.valid) {
 								errors.push({
 									valid: validated.valid as boolean,
 									error: validated.error ? (validated.error.replace("{key}", k) as string) : null,
 									key: `${key}.${k}`,
 									pos: -1,
 								});
+							}
 						}
 					}
 				} else {
@@ -438,13 +455,14 @@ const validate =
 						// @ts-expect-error -- yeah yeah
 						const validated = v.validate(value[key]);
 
-						if (!validated.valid)
+						if (!validated.valid) {
 							errors.push({
 								valid: validated.valid as boolean,
 								error: validated.error ? (validated.error.replace("{key}", key) as string) : null,
 								key,
 								pos: -1,
 							});
+						}
 					}
 				}
 
@@ -456,6 +474,7 @@ const validate =
 			}
 
 			return {
+				// biome-ignore lint/suspicious/useValidTypeof: Its safe
 				valid: typeof value === type,
 				error: `{key} was expected to be a ${type}, but received ${typeof value}`,
 			};

@@ -2,9 +2,13 @@ import type WebSocket from "@/Utils/Classes/WebSocket";
 import type { GuildMemberUnban } from "../../Types/member/unban";
 
 const isMemberPayload = (data: unknown): data is GuildMemberUnban => {
-	if (typeof data !== "object" || data === null || data === undefined) return false;
+	if (typeof data !== "object" || data === null || data === undefined) {
+		return false;
+	}
 
-	if (!("guildId" in data)) return false;
+	if (!("guildId" in data)) {
+		return false;
+	}
 	return Boolean(!("member" in data));
 };
 

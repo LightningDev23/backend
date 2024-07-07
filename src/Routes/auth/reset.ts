@@ -121,8 +121,11 @@ export default class ResetPassword extends Route {
 			tokenId: Encryption.encrypt(sessionId),
 		};
 
-		if (settings.tokens) settings.tokens.push(newTokenObject);
-		else settings.tokens = [newTokenObject];
+		if (settings.tokens) {
+			settings.tokens.push(newTokenObject);
+		} else {
+			settings.tokens = [newTokenObject];
+		}
 
 		if (wasNull) {
 			await this.App.cassandra.models.Settings.insert(settings);

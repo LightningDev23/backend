@@ -80,7 +80,6 @@ export default class FetchInvite extends Route {
 			return unknownGuild.toJSON();
 		}
 
-		// eslint-disable-next-line @typescript-eslint/promise-function-async
 		const roles = (
 			await Promise.all(
 				guildMember.roles.map(async (id) =>
@@ -215,7 +214,6 @@ export default class FetchInvite extends Route {
 			return unknownChannel.toJSON();
 		}
 
-		// eslint-disable-next-line @typescript-eslint/promise-function-async
 		const permissionOverrides = channel.permissionOverrides
 			? ((
 					await Promise.all(
@@ -225,7 +223,7 @@ export default class FetchInvite extends Route {
 					)
 				).filter(Boolean) as PermissionsOverrides[])
 			: [];
-		// eslint-disable-next-line @typescript-eslint/promise-function-async
+
 		const roles = (
 			await Promise.all(
 				guildMember.roles.map(async (id) =>
@@ -340,7 +338,9 @@ export default class FetchInvite extends Route {
 		const invite = await this.App.cassandra.models.Invite.get({ code: Encryption.encrypt(code) });
 
 		if (invite) {
-			if (length > 100) return null;
+			if (length > 100) {
+				return null;
+			}
 
 			return this.generateInviteCode(length + 1);
 		}

@@ -1,5 +1,3 @@
-/* eslint-disable sonarjs/no-identical-functions */
-
 // TODO: Combine these two classes into one (idk why I didn't do that in the first place)
 
 class FlagUtilsBInt<
@@ -31,7 +29,9 @@ class FlagUtilsBInt<
 	public has(bit: bigint | number | keyof (typeof this)["Flags"]) {
 		const bits = typeof bit === "string" ? this.Flags[bit] ?? 0n : BigInt(bit as number);
 
-		if (bits === 0n) return false; // No bit is able to be 0
+		if (bits === 0n) {
+			return false;
+		} // No bit is able to be 0
 
 		return (this.bits & bits) === bits;
 	}
@@ -39,7 +39,9 @@ class FlagUtilsBInt<
 	public add(bit: bigint | number | keyof (typeof this)["Flags"]): this {
 		const bits = typeof bit === "string" ? this.Flags[bit] ?? 0n : BigInt(bit as number);
 
-		if (this.has(bits)) return this;
+		if (this.has(bits)) {
+			return this;
+		}
 
 		this.bits |= bits;
 
@@ -49,7 +51,9 @@ class FlagUtilsBInt<
 	public remove(bit: bigint | number | keyof (typeof this)["Flags"]): this {
 		const bits = typeof bit === "string" ? this.Flags[bit] ?? 0n : BigInt(bit as number);
 
-		if (!this.has(bits)) return this;
+		if (!this.has(bits)) {
+			return this;
+		}
 
 		this.bits ^= bits;
 
@@ -85,7 +89,9 @@ class FlagUtilsBInt<
 		let finishedBits = 0n;
 
 		for (const bit of bits) {
-			if (this.has(bit)) finishedBits |= this.Flags[bit as any] ?? 0n;
+			if (this.has(bit)) {
+				finishedBits |= this.Flags[bit as any] ?? 0n;
+			}
 		}
 
 		return finishedBits;
@@ -95,7 +101,9 @@ class FlagUtilsBInt<
 		return Object.keys(this.Flags).reduce<bigint>((bits, key) => {
 			let newBits = bits;
 
-			if (this.has(this.Flags[key] ?? 0n)) newBits |= this.Flags[key] ?? 0n;
+			if (this.has(this.Flags[key] ?? 0n)) {
+				newBits |= this.Flags[key] ?? 0n;
+			}
 
 			return newBits;
 		}, 0n);
@@ -135,7 +143,9 @@ class FlagUtils<
 	public has(bit: bigint | number | keyof (typeof this)["Flags"]) {
 		const bits = typeof bit === "string" ? this.Flags[bit] ?? 0 : Number(bit);
 
-		if (bits === 0) return false; // No bit is able to be 0
+		if (bits === 0) {
+			return false;
+		} // No bit is able to be 0
 
 		return (this.bits & bits) === bits;
 	}
@@ -143,7 +153,9 @@ class FlagUtils<
 	public add(bit: bigint | number | keyof (typeof this)["Flags"]): this {
 		const bits = typeof bit === "string" ? this.Flags[bit] ?? 0 : Number(bit);
 
-		if (this.has(bits)) return this;
+		if (this.has(bits)) {
+			return this;
+		}
 
 		this.bits |= bits;
 
@@ -153,7 +165,9 @@ class FlagUtils<
 	public remove(bit: bigint | number | keyof (typeof this)["Flags"]): this {
 		const bits = typeof bit === "string" ? this.Flags[bit] ?? 0 : Number(bit);
 
-		if (!this.has(bits)) return this;
+		if (!this.has(bits)) {
+			return this;
+		}
 
 		this.bits ^= bits;
 
@@ -189,7 +203,9 @@ class FlagUtils<
 		let finishedBits = 0;
 
 		for (const bit of bits) {
-			if (this.has(bit)) finishedBits |= this.Flags[bit as any] ?? 0;
+			if (this.has(bit)) {
+				finishedBits |= this.Flags[bit as any] ?? 0;
+			}
 		}
 
 		return finishedBits;
@@ -199,7 +215,9 @@ class FlagUtils<
 		return Object.keys(this.Flags).reduce<number>((bits, key) => {
 			let newBits = bits;
 
-			if (this.has(this.Flags[key] ?? 0)) newBits |= this.Flags[key] ?? 0;
+			if (this.has(this.Flags[key] ?? 0)) {
+				newBits |= this.Flags[key] ?? 0;
+			}
 
 			return newBits;
 		}, 0);

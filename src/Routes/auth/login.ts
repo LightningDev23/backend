@@ -176,8 +176,11 @@ export default class Login extends Route {
 			tokenId: Encryption.encrypt(sessionId),
 		};
 
-		if (tokens.tokens) tokens.tokens.push(newTokenObject);
-		else tokens.tokens = [newTokenObject];
+		if (tokens.tokens) {
+			tokens.tokens.push(newTokenObject);
+		} else {
+			tokens.tokens = [newTokenObject];
+		}
 
 		if (wasNull) {
 			await this.App.cassandra.models.Settings.insert(tokens);

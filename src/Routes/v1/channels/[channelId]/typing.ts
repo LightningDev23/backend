@@ -92,7 +92,6 @@ export default class Typing extends Route {
 			const permissionOverrides = channel.permissionOverrides
 				? ((
 						await Promise.all(
-							// eslint-disable-next-line @typescript-eslint/promise-function-async
 							channel.permissionOverrides.map((id) =>
 								this.App.cassandra.models.PermissionOverride.get({ permissionId: id }),
 							),
@@ -101,7 +100,6 @@ export default class Typing extends Route {
 				: [];
 			const roles = (
 				await Promise.all(
-					// eslint-disable-next-line @typescript-eslint/promise-function-async
 					guildMember.roles.map((id) => this.App.cassandra.models.Role.get({ roleId: id, guildId: channel.guildId! })),
 				)
 			).filter(Boolean) as Roles[];
@@ -151,7 +149,6 @@ export default class Typing extends Route {
 			userId: user.id,
 		});
 
-		// eslint-disable-next-line sonarjs/no-redundant-jump, no-useless-return
 		return;
 	}
 }

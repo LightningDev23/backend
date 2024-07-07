@@ -3,7 +3,9 @@ import type WebSocket from "../../../WebSocket";
 import type MessageTyping from "../../Types/message/typing.ts";
 
 const isMessagePayload = (data: unknown): data is MessageTyping => {
-	if (typeof data !== "object" || data === null || data === undefined) return false;
+	if (typeof data !== "object" || data === null || data === undefined) {
+		return false;
+	}
 
 	return "channelId" in data && "userId" in data;
 };

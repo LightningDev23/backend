@@ -28,21 +28,27 @@ class LinkGeneration {
 
 		const [base64snowflake, base64createdDate, nonce, secret] = decodedLink.split(".");
 
-		if (!base64snowflake || !base64createdDate || !nonce || !secret) return false;
+		if (!base64snowflake || !base64createdDate || !nonce || !secret) {
+			return false;
+		}
 
 		const decodedSnowflake = Base64.Decode(base64snowflake);
 		const createdDate = Base64.Decode(base64createdDate);
 
 		App.staticLogger.debug("Snowflake", decodedSnowflake);
 
-		if (!snowflake.validate(decodedSnowflake)) return false;
+		if (!snowflake.Validate(decodedSnowflake)) {
+			return false;
+		}
 
 		App.staticLogger.debug("Snowflake good");
 
 		const createdDateParsed = new Date(createdDate);
 
 		// the max age of these will be around 2 weeks (MAX) so just hard code the check here
-		if (createdDateParsed.getTime() + 1_209_600_000 < Date.now()) return false;
+		if (createdDateParsed.getTime() + 1_209_600_000 < Date.now()) {
+			return false;
+		}
 
 		App.staticLogger.debug("Date good");
 
@@ -55,11 +61,15 @@ class LinkGeneration {
 		App.staticLogger.debug("New Secret", newsecret);
 		App.staticLogger.debug("Old Secret", secret);
 
-		if (newsecret !== secret) return false;
+		if (newsecret !== secret) {
+			return false;
+		}
 
 		App.staticLogger.debug("New vs Old = Yes");
 
-		if (link !== Base64.Encode(`${base64snowflake}.${base64createdDate}.${nonce}.${secret}`)) return false;
+		if (link !== Base64.Encode(`${base64snowflake}.${base64createdDate}.${nonce}.${secret}`)) {
+			return false;
+		}
 
 		App.staticLogger.debug("Verified Link");
 
@@ -71,11 +81,15 @@ class LinkGeneration {
 
 		const [base64snowflake, base64createdDate, nonce, secret] = decodedLink.split(".");
 
-		if (!base64snowflake || !base64createdDate || !nonce || !secret) return null;
+		if (!base64snowflake || !base64createdDate || !nonce || !secret) {
+			return null;
+		}
 
 		const decodedSnowflake = Base64.Decode(base64snowflake);
 
-		if (!snowflake.validate(decodedSnowflake)) return null;
+		if (!snowflake.Validate(decodedSnowflake)) {
+			return null;
+		}
 
 		return decodedSnowflake;
 	}

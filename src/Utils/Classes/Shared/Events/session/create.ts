@@ -2,9 +2,13 @@ import type WebSocket from "../../../WebSocket";
 import type { SessionCreate } from "../../Types/session/create";
 
 const isSessionsPayload = (data: unknown): data is SessionCreate => {
-	if (typeof data !== "object" || data === null || data === undefined) return false;
+	if (typeof data !== "object" || data === null || data === undefined) {
+		return false;
+	}
 
-	if (!("sessionId" in data)) return false;
+	if (!("sessionId" in data)) {
+		return false;
+	}
 	return Boolean(!("userId" in data));
 };
 

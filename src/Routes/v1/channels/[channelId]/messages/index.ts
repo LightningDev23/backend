@@ -152,7 +152,6 @@ export default class FetchCreateMessages extends Route {
 				return unknownChannel.toJSON();
 			}
 
-			// eslint-disable-next-line @typescript-eslint/promise-function-async
 			const permissionOverrides = channel.permissionOverrides
 				? ((
 						await Promise.all(
@@ -162,7 +161,7 @@ export default class FetchCreateMessages extends Route {
 						)
 					).filter(Boolean) as PermissionsOverrides[])
 				: [];
-			// eslint-disable-next-line @typescript-eslint/promise-function-async
+
 			const roles = (
 				await Promise.all(
 					guildMember.roles.map(async (id) =>
@@ -269,7 +268,9 @@ export default class FetchCreateMessages extends Route {
 		for (const bucket of buckets) {
 			const message = await this.fetchMessage(channelId, messageId, bucket);
 
-			if (message) return message;
+			if (message) {
+				return message;
+			}
 		}
 
 		return null;
@@ -328,7 +329,9 @@ export default class FetchCreateMessages extends Route {
 
 			messages.push(...this.App.cassandra.underscoreCqlToCamelCaseMappings.objectToFixedCasing(fetchedMessages.rows));
 
-			if (messages.length >= limit) break;
+			if (messages.length >= limit) {
+				break;
+			}
 		}
 
 		return messages.slice(0, limit);
@@ -343,7 +346,9 @@ export default class FetchCreateMessages extends Route {
 	}
 
 	public async parseMessage(message: Message | null, levelsDeep = 0): Promise<ReturnMessage | null> {
-		if (!message) return null;
+		if (!message) {
+			return null;
+		}
 
 		const userData = await this.App.cassandra.models.User.get(
 			{
@@ -487,7 +492,6 @@ export default class FetchCreateMessages extends Route {
 				return unknownChannel.toJSON();
 			}
 
-			// eslint-disable-next-line @typescript-eslint/promise-function-async
 			const permissionOverrides = channel.permissionOverrides
 				? ((
 						await Promise.all(
@@ -497,7 +501,7 @@ export default class FetchCreateMessages extends Route {
 						)
 					).filter(Boolean) as PermissionsOverrides[])
 				: [];
-			// eslint-disable-next-line @typescript-eslint/promise-function-async
+
 			const roles = (
 				await Promise.all(
 					guildMember.roles.map(async (id) =>
@@ -624,7 +628,9 @@ export default class FetchCreateMessages extends Route {
 					},
 				);
 
-				if (!fetchedUser) continue;
+				if (!fetchedUser) {
+					continue;
+				}
 
 				insertMsg.mentions.push(Encryption.encrypt(userMention));
 
@@ -637,7 +643,9 @@ export default class FetchCreateMessages extends Route {
 					},
 				);
 
-				if (!settings) continue;
+				if (!settings) {
+					continue;
+				}
 
 				await this.App.cassandra.models.Settings.update({
 					userId: Encryption.encrypt(userMention),
@@ -655,7 +663,9 @@ export default class FetchCreateMessages extends Route {
 				channelId: Encryption.encrypt(channel),
 			});
 
-			if (!channelExists) continue;
+			if (!channelExists) {
+				continue;
+			}
 
 			insertMsg.mentionChannels.push(Encryption.encrypt(channel));
 		}

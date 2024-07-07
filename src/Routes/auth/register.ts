@@ -185,7 +185,6 @@ export default class Register extends Route {
 		},
 		fields: string[],
 	) {
-		// eslint-disable-next-line unicorn/no-array-method-this-argument
 		const fetched = await this.App.cassandra.models.User.find(opts, {
 			fields: fields as any, // ? Due to me changing something string[] won't work anymore, but this should be safe
 		});

@@ -1,6 +1,5 @@
 import type { Event } from "../Event.ts";
 
-// eslint-disable-next-line @typescript-eslint/naming-convention
 const Description = (description: string) => {
 	return (target: Event, propertyKey: string) => {
 		target.__descriptions = [

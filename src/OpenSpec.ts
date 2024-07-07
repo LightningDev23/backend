@@ -196,7 +196,9 @@ for (const [name, route] of Object.entries(router.routes)) {
 		const methodDec = decs?.find((dec) => dec.includes("Method"));
 		const args = decorators.map((dec) => dec.getArguments().map((arg) => arg.getText().replaceAll('"', "")));
 
-		if (!methodDec) return false;
+		if (!methodDec) {
+			return false;
+		}
 
 		return Boolean(args.some((arg) => arg.some((a) => allowedMethods.includes(a))));
 	});
@@ -293,5 +295,4 @@ dd.push({
 
 await Bun.write("./openSpecStorage/raw.json", JSON.stringify(dd.reverse(), null, 4));
 
-// eslint-disable-next-line n/prefer-global/process
 process.exit(0);

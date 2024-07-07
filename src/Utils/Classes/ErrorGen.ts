@@ -174,7 +174,7 @@ const errorGen = {
 	 */
 	RelationshipAlreadyExists: () => {
 		return new HTTPErrors(4_027);
-	}
+	},
 };
 
 export default errorGen;

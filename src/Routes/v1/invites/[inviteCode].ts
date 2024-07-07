@@ -123,12 +123,12 @@ export default class FetchJoinInvite extends Route {
 			guild: key
 				? fetchedGuild
 				: {
-					id: inviteExists.guildId,
-					name: fetchedGuild.name,
-					icon: fetchedGuild.icon,
-					ownerId: fetchedGuild.ownerId,
-					features: fetchedGuild.features ?? [],
-				},
+						id: inviteExists.guildId,
+						name: fetchedGuild.name,
+						icon: fetchedGuild.icon,
+						ownerId: fetchedGuild.ownerId,
+						features: fetchedGuild.features ?? [],
+					},
 			channel: {
 				id: inviteExists.channelId,
 				name: foundChannel?.name,
@@ -167,7 +167,6 @@ export default class FetchJoinInvite extends Route {
 
 			return maxGuild.toJSON();
 		}
-
 
 		const inviteExists = await this.App.cassandra.models.Invite.get({
 			code: Encryption.encrypt(params.inviteCode),
@@ -223,15 +222,17 @@ export default class FetchJoinInvite extends Route {
 			return invalidInvite.toJSON();
 		}
 
-		const member = await this.App.cassandra.models.GuildMember.get({
-			userId: Encryption.encrypt(user.id),
-			guildId: inviteExists.guildId,
-			left: false,
-		}) ?? await this.App.cassandra.models.GuildMember.get({
-			userId: Encryption.encrypt(user.id),
-			guildId: inviteExists.guildId,
-			left: true,
-		});
+		const member =
+			(await this.App.cassandra.models.GuildMember.get({
+				userId: Encryption.encrypt(user.id),
+				guildId: inviteExists.guildId,
+				left: false,
+			})) ??
+			(await this.App.cassandra.models.GuildMember.get({
+				userId: Encryption.encrypt(user.id),
+				guildId: inviteExists.guildId,
+				left: true,
+			}));
 
 		if (member) {
 			const memberFlags = new GuildMemberFlags(member.flags);
@@ -316,7 +317,7 @@ export default class FetchJoinInvite extends Route {
 
 		this.App.rabbitMQForwarder("guild.create", {
 			userId: user.id,
-			guild: Encryption.completeDecryption((fetchedInvite as { guild: finishedGuild; }).guild),
+			guild: Encryption.completeDecryption((fetchedInvite as { guild: finishedGuild }).guild),
 			member: Encryption.completeDecryption(newMember),
 		});
 
@@ -333,7 +334,7 @@ export default class FetchJoinInvite extends Route {
 			await this.App.cassandra.models.GuildMember.find({ guildId: inviteExists.guildId, left: false }, { limit: 100 })
 		).toArray();
 
-		const finishedGuild = (fetchedInvite as { guild: finishedGuild; }).guild;
+		const finishedGuild = (fetchedInvite as { guild: finishedGuild }).guild;
 
 		const members: unknown[] = [];
 
@@ -368,8 +369,8 @@ export default class FetchJoinInvite extends Route {
 			const fetchedPresence = await this.App.cache.get(`user:${fetchedUser.userId}`);
 			const parsedPresence = JSON.parse(
 				(fetchedPresence as string) ??
-				`[{ "sessionId": null, "since": null, "state": null, "type": ${presenceTypes.custom}, "status": ${statusTypes.offline} }]`,
-			) as { sessionId: string | null; since: number | null; state: string | null; status: number; type: number; }[];
+					`[{ "sessionId": null, "since": null, "state": null, "type": ${presenceTypes.custom}, "status": ${statusTypes.offline} }]`,
+			) as { sessionId: string | null; since: number | null; state: string | null; status: number; type: number }[];
 
 			// @ts-expect-error -- it's fine
 			data.presence = parsedPresence.map((pre) => ({
@@ -392,10 +393,10 @@ export default class FetchJoinInvite extends Route {
 			guild: {
 				// ? it should be the same as if they didn't provide the key
 				id: Encryption.decrypt(inviteExists.guildId),
-				name: (fetchedInvite as { guild: finishedGuild; }).guild.name,
-				icon: (fetchedInvite as { guild: finishedGuild; }).guild.icon,
-				ownerId: (fetchedInvite as { guild: finishedGuild; }).guild.ownerId,
-				features: (fetchedInvite as { guild: finishedGuild; }).guild.features ?? [],
+				name: (fetchedInvite as { guild: finishedGuild }).guild.name,
+				icon: (fetchedInvite as { guild: finishedGuild }).guild.icon,
+				ownerId: (fetchedInvite as { guild: finishedGuild }).guild.ownerId,
+				features: (fetchedInvite as { guild: finishedGuild }).guild.features ?? [],
 			},
 		};
 	}

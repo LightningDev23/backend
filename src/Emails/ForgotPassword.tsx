@@ -1,17 +1,4 @@
-import {
-	Body,
-	Button,
-	Container,
-	Head,
-	Heading,
-	Hr,
-	Html,
-	Img,
-	Link,
-	Preview,
-	Section,
-	Text,
-} from "@react-email/components";
+import { Body, Button, Container, Head, Heading, Hr, Html, Img, Preview, Section, Text } from "@react-email/components";
 import { imrUrl } from "./Image.tsx";
 
 const styles = {

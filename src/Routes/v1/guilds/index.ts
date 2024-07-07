@@ -201,7 +201,9 @@ export default class FetchGuilds extends Route {
 					channel.overrides.push(found);
 				}
 
-				if (!channel.overrides) channel.overrides = [];
+				if (!channel.overrides) {
+					channel.overrides = [];
+				}
 			}
 
 			rawFinishedGuild.push(raw);
@@ -430,7 +432,9 @@ export default class FetchGuilds extends Route {
 			const sortedChannels = this.sortChannels(fixedChannels);
 
 			for (const channel of sortedChannels) {
-				if (channel.id && newChannels.some((c) => c.oldId === channel.id)) continue;
+				if (channel.id && newChannels.some((c) => c.oldId === channel.id)) {
+					continue;
+				}
 
 				// ? We generate a new channel id, since we do not trust the client
 				// ? The clients ids though are used categories so clients can build a guild on the initial creation instead of after its created
@@ -453,9 +457,15 @@ export default class FetchGuilds extends Route {
 						if (permission.type === Constants.permissionOverrideTypes.Role) {
 							const foundRole = newRoles.find((r) => r.oldId === id);
 
-							if (!foundRole) continue; // silently ignore it
-							if (permission.allow && !permissionOverrideType(permission.allow)) continue; // silently ignore it
-							if (permission.deny && !permissionOverrideType(permission.deny)) continue; // silently ignore it
+							if (!foundRole) {
+								continue; // silently ignore it
+							}
+							if (permission.allow && !permissionOverrideType(permission.allow)) {
+								continue; // silently ignore it
+							}
+							if (permission.deny && !permissionOverrideType(permission.deny)) {
+								continue; // silently ignore it
+							}
 
 							const permId = this.App.snowflake.generate();
 
@@ -596,7 +606,9 @@ export default class FetchGuilds extends Route {
 					channel.permissionOverrides.map((id) => {
 						const found = permissionOverrides.find((p) => p.id === id);
 
-						if (!found) return [];
+						if (!found) {
+							return [];
+						}
 
 						return [
 							Encryption.decrypt(found.permissionId),

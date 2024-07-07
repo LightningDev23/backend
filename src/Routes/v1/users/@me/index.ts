@@ -63,7 +63,7 @@ export default class FetchPatch extends Route {
 		user,
 		query,
 		set,
-	}: CreateRoute<"/@me", any, [UserMiddlewareType], any, { include?: string; }>) {
+	}: CreateRoute<"/@me", any, [UserMiddlewareType], any, { include?: string }>) {
 		const fetchedUser = await this.App.cassandra.models.User.get({
 			userId: Encryption.encrypt(user.id),
 		});
@@ -78,7 +78,7 @@ export default class FetchPatch extends Route {
 		const flags = new FlagFields(fetchedUser.flags, fetchedUser?.publicFlags ?? 0);
 
 		const include = query.include?.split(",") ?? [];
-		
+
 		const userObject: User = {
 			id: fetchedUser.userId,
 			email: fetchedUser.email, // TODO: If its oauth, check if they got the user.indentity.email scope
@@ -104,10 +104,14 @@ export default class FetchPatch extends Route {
 				},
 			);
 
-			if (settings) userObject.bio = Encryption.decrypt(settings.bio ?? "") || null;
+			if (settings) {
+				userObject.bio = Encryption.decrypt(settings.bio ?? "") || null;
+			}
 		}
 
-		if (include.includes("invites")) userObject.allowedInvites = user.settings?.allowedInvites ?? null;
+		if (include.includes("invites")) {
+			userObject.allowedInvites = user.settings?.allowedInvites ?? null;
+		}
 
 		return Encryption.completeDecryption(userObject);
 	}
@@ -193,13 +197,19 @@ export default class FetchPatch extends Route {
 			}
 
 			if (!failedToUpdateSelf.hasErrors()) {
-				if (body.username) stuffToUpdate.username = Encryption.encrypt(body.username);
+				if (body.username) {
+					stuffToUpdate.username = Encryption.encrypt(body.username);
+				}
 
-				if (body.tag) stuffToUpdate.tag = body.tag;
+				if (body.tag) {
+					stuffToUpdate.tag = body.tag;
+				}
 			}
 		}
 
-		if (body.globalNickname !== undefined) stuffToUpdate.globalNickname = body.globalNickname ? Encryption.encrypt(body.globalNickname) : null
+		if (body.globalNickname !== undefined) {
+			stuffToUpdate.globalNickname = body.globalNickname ? Encryption.encrypt(body.globalNickname) : null;
+		}
 
 		if (failedToUpdateSelf.hasErrors()) {
 			set.status = 400;
@@ -308,10 +318,12 @@ export default class FetchPatch extends Route {
 			query: body.bio === undefined ? {} : { include: "bio" },
 			set,
 		});
-		
-		if (typeof fetched === "string") return fetched;
-		
-		this.App.rabbitMQForwarder("user.update", fetched)
+
+		if (typeof fetched === "string") {
+			return fetched;
+		}
+
+		this.App.rabbitMQForwarder("user.update", fetched);
 
 		return {
 			...fetched,
@@ -327,7 +339,6 @@ export default class FetchPatch extends Route {
 		},
 		fields: string[],
 	) {
-		// eslint-disable-next-line unicorn/no-array-method-this-argument
 		const fetched = await this.App.cassandra.models.User.find(opts, {
 			fields: fields as any, // ? Due to me changing something string[] won't work anymore, but this should be safe
 		});

@@ -105,7 +105,9 @@ export default class FetchEditGuild extends Route {
 				channel.overrides.push(found);
 			}
 
-			if (!channel.overrides) channel.overrides = [];
+			if (!channel.overrides) {
+				channel.overrides = [];
+			}
 		}
 
 		const guild: Partial<finishedGuild> = {
@@ -279,7 +281,6 @@ export default class FetchEditGuild extends Route {
 			guildId: params.guildId,
 		});
 
-		// eslint-disable-next-line sonarjs/no-redundant-jump, no-useless-return
 		return;
 	}
 }

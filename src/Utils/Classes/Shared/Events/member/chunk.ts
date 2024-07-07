@@ -3,12 +3,16 @@ import type WebSocket from "@/Utils/Classes/WebSocket";
 import type { GuildMemberChunk } from "../../Types/member/chunk.ts";
 
 const isMemberPayload = (data: unknown): data is GuildMemberChunk => {
-	if (typeof data !== "object" || data === null || data === undefined) return false;
+	if (typeof data !== "object" || data === null || data === undefined) {
+		return false;
+	}
 
 	const items = ["userId", "guildId", "members"];
 
 	for (const item of items) {
-		if (!(item in data)) return false;
+		if (!(item in data)) {
+			return false;
+		}
 	}
 
 	return true;

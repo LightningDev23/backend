@@ -98,7 +98,9 @@ class WebSocket extends App {
 			if (isHeartbeatMessage(event.data)) {
 				const user = this.clients.get(event.data.data.data.sessionId);
 
-				if (!user) return;
+				if (!user) {
+					return;
+				}
 
 				user.close(errorCodes.heartbeatTimeout);
 
@@ -377,12 +379,16 @@ class WebSocket extends App {
 					const version = params.get("version");
 					const encoding = params.get("encoding");
 
-					if (version) newUser.version = Number(version);
-					else newUser.version = 1;
+					if (version) {
+						newUser.version = Number(version);
+					} else {
+						newUser.version = 1;
+					}
 
 					if (encoding) {
-						if (encoding === "json") newUser.encoding = encoding;
-						else {
+						if (encoding === "json") {
+							newUser.encoding = encoding;
+						} else {
 							newUser.close(errorCodes.unknownError);
 
 							return;
@@ -504,7 +510,9 @@ class WebSocket extends App {
 							});
 						}
 
-						if (got) await this.cache.set(`user:${Encryption.encrypt(ws.data.user.id)}`, JSON.stringify(filtered));
+						if (got) {
+							await this.cache.set(`user:${Encryption.encrypt(ws.data.user.id)}`, JSON.stringify(filtered));
+						}
 					}
 				},
 			},
@@ -555,8 +563,11 @@ class WebSocket extends App {
 			this.logger.info(`Loaded Event ${loaded}`);
 		}
 
-		if (isMainThread) this.logger.info(`Listening on port ${this.config.ws.port}`);
-		else postMessage({ type: "ready", data: { port: this.config.ws.port } });
+		if (isMainThread) {
+			this.logger.info(`Listening on port ${this.config.ws.port}`);
+		} else {
+			postMessage({ type: "ready", data: { port: this.config.ws.port } });
+		}
 
 		this.handleClosedConnects();
 		this.handleUnauthedUsers();
@@ -583,14 +594,18 @@ class WebSocket extends App {
 					this.clients.delete(user.sessionId);
 					this.disconnectedUsers.delete(sessionId);
 
-					if (user.token && user.settings.status === "online") await user.setStatus("offline");
+					if (user.token && user.settings.status === "online") {
+						await user.setStatus("offline");
+					}
 
 					const foundTopics = Array.from(this.topics.entries()).filter(([, users]) => users.has(user));
 
 					for (const [topic, users] of foundTopics) {
 						users.delete(user);
 
-						if (users.size === 0) this.topics.delete(topic);
+						if (users.size === 0) {
+							this.topics.delete(topic);
+						}
 					}
 
 					continue;
@@ -600,14 +615,18 @@ class WebSocket extends App {
 					this.clients.delete(user.sessionId);
 					this.disconnectedUsers.delete(sessionId);
 
-					if (user.token && user.settings.status !== "offline") await user.setStatus("offline");
+					if (user.token && user.settings.status !== "offline") {
+						await user.setStatus("offline");
+					}
 
 					const foundTopics = Array.from(this.topics.entries()).filter(([, users]) => users.has(user));
 
 					for (const [topic, users] of foundTopics) {
 						users.delete(user);
 
-						if (users.size === 0) this.topics.delete(topic);
+						if (users.size === 0) {
+							this.topics.delete(topic);
+						}
 					}
 				}
 			}
@@ -681,7 +700,9 @@ class WebSocket extends App {
 	public getVersion(path: string) {
 		const matched = /\/v(?<version>\d+)\//.exec(path);
 
-		if (!matched) return null;
+		if (!matched) {
+			return null;
+		}
 
 		return Number(matched[1]);
 	}
@@ -826,7 +847,9 @@ class WebSocket extends App {
 		if (opt.topic) {
 			const users = this.topics.get(opt.topic);
 
-			if (!users) return 0;
+			if (!users) {
+				return 0;
+			}
 
 			for (const user of users) {
 				for (const topic of topics) {
@@ -847,7 +870,9 @@ class WebSocket extends App {
 	public unsubscribe(topic: string, user: User | User[]) {
 		const users = this.topics.get(topic);
 
-		if (!users) return;
+		if (!users) {
+			return;
+		}
 
 		if (Array.isArray(user)) {
 			for (const u of user) {
@@ -857,7 +882,9 @@ class WebSocket extends App {
 			users.delete(user);
 		}
 
-		if (users.size === 0) this.topics.delete(topic);
+		if (users.size === 0) {
+			this.topics.delete(topic);
+		}
 
 		return users.size;
 	}

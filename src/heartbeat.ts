@@ -62,7 +62,9 @@ self.onmessage = (event) => {
 	} else if (data.event === "heartbeat") {
 		const session = sessions.get(data.data.sessionId);
 
-		if (!session) return;
+		if (!session) {
+			return;
+		}
 
 		session.lastHeartbeat = Date.now();
 

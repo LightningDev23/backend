@@ -1,6 +1,6 @@
 import type { ServerWebSocket } from "bun";
 import { statusTypes } from "@/Constants.ts";
-import { type User as UserType } from "@/Routes/v1/users/@me/index.ts";
+import type { User as UserType } from "@/Routes/v1/users/@me/index.ts";
 import FlagFields from "../BitFields/Flags.ts";
 import Encryption from "../Encryption.ts";
 import Token from "../Token.ts";
@@ -53,25 +53,25 @@ class User {
 
 	#events: Map<string, Set<Function>> = new Map();
 
-	public closedAt: number = 0;
+	public closedAt = 0;
 
 	public openedAt: number = Date.now();
 
-	public resumeable: boolean = false;
+	public resumeable = false;
 
-	public sessionId: string = "";
+	public sessionId = "";
 
-	public heartbeatInterval: number = 0;
+	public heartbeatInterval = 0;
 
-	public lastHeartbeat: number = 0;
+	public lastHeartbeat = 0;
 
-	public lastHeartbeatAck: number = 0;
+	public lastHeartbeatAck = 0;
 
-	public version: number = 0;
+	public version = 0;
 
-	public encoding: string = "json";
+	public encoding = "json";
 
-	public expectingClose: boolean = false;
+	public expectingClose = false;
 
 	public ip!: string;
 
@@ -82,7 +82,7 @@ class User {
 		os: string;
 	};
 
-	public sequence: number = 0; // ? -1 due to the hello packet
+	public sequence = 0; // ? -1 due to the hello packet
 
 	public fetchedUser!: UserType;
 
@@ -92,9 +92,10 @@ class User {
 		this.heartbeatInterval = this.#App.getHeartbeatInterval();
 	}
 
-	// eslint-disable-next-line promise/prefer-await-to-callbacks
 	public on(event: "close", callback: Function) {
-		if (!this.#events.has(event)) this.#events.set(event, new Set());
+		if (!this.#events.has(event)) {
+			this.#events.set(event, new Set());
+		}
 
 		this.#events.get(event)!.add(callback);
 
@@ -102,10 +103,11 @@ class User {
 	}
 
 	public emit(event: "close") {
-		if (!this.#events.has(event)) return;
+		if (!this.#events.has(event)) {
+			return;
+		}
 
 		for (const callback of this.#events.get(event)!) {
-			// eslint-disable-next-line n/callback-return, promise/prefer-await-to-callbacks
 			callback();
 		}
 
@@ -119,7 +121,9 @@ class User {
 	}
 
 	public subscribe(topic: string) {
-		if (!this.App.topics.has(topic)) this.App.topics.set(topic, new Set());
+		if (!this.App.topics.has(topic)) {
+			this.App.topics.set(topic, new Set());
+		}
 
 		this.App.topics.get(topic)!.add(this);
 
@@ -127,17 +131,23 @@ class User {
 	}
 
 	public unsubscribe(topic: string) {
-		if (!this.App.topics.has(topic)) return;
+		if (!this.App.topics.has(topic)) {
+			return;
+		}
 
 		this.App.topics.get(topic)!.delete(this);
 
-		if (this.App.topics.get(topic)!.size === 0) this.App.topics.delete(topic);
+		if (this.App.topics.get(topic)!.size === 0) {
+			this.App.topics.delete(topic);
+		}
 
 		return this;
 	}
 
 	public publish(topic: string, data: { data: any; event?: string; op: number }) {
-		if (!this.App.topics.has(topic)) return this;
+		if (!this.App.topics.has(topic)) {
+			return this;
+		}
 
 		for (const user of this.App.topics.get(topic)!) {
 			user.send(JSON.stringify(data));
@@ -146,7 +156,7 @@ class User {
 		return this;
 	}
 
-	public getTopics(nonSubscribed: boolean = false) {
+	public getTopics(nonSubscribed = false) {
 		return nonSubscribed
 			? Array.from(this.App.topics.keys())
 			: Array.from(this.App.topics.keys()).filter((topic) => this.App.topics.get(topic)!.has(this));
@@ -182,7 +192,9 @@ class User {
 	public send(data: any, seq = true) {
 		this.rawSocket.send(typeof data === "string" ? data : this.#App.jsonStringify(data));
 
-		if (seq) this.sequence++;
+		if (seq) {
+			this.sequence++;
+		}
 
 		return this;
 	}
@@ -312,10 +324,15 @@ class User {
 	public async setStatus(status: "dnd" | "idle" | "invisible" | "offline" | "online") {
 		let stat = statusTypes[this.settings.status]; // old status
 
-		if (status === "offline") stat |= statusTypes.offline;
-		else stat &= ~statusTypes.offline;
+		if (status === "offline") {
+			stat |= statusTypes.offline;
+		} else {
+			stat &= ~statusTypes.offline;
+		}
 
-		if (stat === 0) stat = statusTypes[status];
+		if (stat === 0) {
+			stat = statusTypes[status];
+		}
 
 		this.settings.status = this.App.status.get(stat);
 

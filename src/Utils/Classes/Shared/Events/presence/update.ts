@@ -3,11 +3,19 @@ import type WebSocket from "../../../WebSocket";
 import type { PresenceUpdate } from "../../Types/presence/update";
 
 const isPresencePayload = (data: unknown): data is PresenceUpdate => {
-	if (typeof data !== "object" || data === null || data === undefined) return false;
+	if (typeof data !== "object" || data === null || data === undefined) {
+		return false;
+	}
 
-	if (!("guildId" in data)) return false;
-	if (!("presences" in data)) return false;
-	if (!("guilds" in data)) return false;
+	if (!("guildId" in data)) {
+		return false;
+	}
+	if (!("presences" in data)) {
+		return false;
+	}
+	if (!("guilds" in data)) {
+		return false;
+	}
 
 	return "user" in data;
 };

@@ -1,4 +1,3 @@
-/* eslint-disable n/no-sync */
 import fs from "node:fs";
 import { URL } from "node:url";
 import { watch } from "chokidar";
@@ -57,7 +56,9 @@ class FileSystemRouter {
 
 		this.reload();
 
-		if (this.watch) this.setupWatcher();
+		if (this.watch) {
+			this.setupWatcher();
+		}
 	}
 
 	public on(event: "reload", listener: (reload: Reload) => void): this {
@@ -141,7 +142,7 @@ class FileSystemRouter {
 				dirent.isDirectory()
 					? this.recursiveReadDir(`${dir}/${dirent.name}`, files)
 					: !dirent.name.startsWith(".") &&
-						  this.fileExtensions.includes(dirent.name.slice(dirent.name.lastIndexOf(".")))
+							this.fileExtensions.includes(dirent.name.slice(dirent.name.lastIndexOf(".")))
 						? `${dir}/${dirent.name}`
 						: [],
 			);
@@ -249,7 +250,7 @@ class FileSystemRouter {
 
 					if (key.startsWith("...")) {
 						params[key.slice(3)] = value;
-						// eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+
 						delete params[key];
 					}
 				}

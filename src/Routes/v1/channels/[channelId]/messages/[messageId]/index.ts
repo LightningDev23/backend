@@ -167,7 +167,6 @@ export default class DeleteEditGetMessage extends Route {
 				return;
 			}
 
-			// eslint-disable-next-line @typescript-eslint/promise-function-async
 			const permissionOverrides = channel.permissionOverrides
 				? ((
 						await Promise.all(
@@ -177,7 +176,7 @@ export default class DeleteEditGetMessage extends Route {
 						)
 					).filter(Boolean) as PermissionsOverrides[])
 				: [];
-			// eslint-disable-next-line @typescript-eslint/promise-function-async
+
 			const roles = (
 				await Promise.all(
 					guildMember.roles.map(async (id) =>
@@ -238,11 +237,10 @@ export default class DeleteEditGetMessage extends Route {
 		this.App.rabbitMQForwarder("message.delete", {
 			channelId: params.channelId,
 			messageId: params.messageId,
-		})
-		
+		});
+
 		set.status = 204;
 
-		// eslint-disable-next-line sonarjs/no-redundant-jump, no-useless-return
 		return;
 	}
 
@@ -350,7 +348,6 @@ export default class DeleteEditGetMessage extends Route {
 				return unknownChannel.toJSON();
 			}
 
-			// eslint-disable-next-line @typescript-eslint/promise-function-async
 			const permissionOverrides = channel.permissionOverrides
 				? ((
 						await Promise.all(
@@ -360,7 +357,7 @@ export default class DeleteEditGetMessage extends Route {
 						)
 					).filter(Boolean) as PermissionsOverrides[])
 				: [];
-			// eslint-disable-next-line @typescript-eslint/promise-function-async
+
 			const roles = (
 				await Promise.all(
 					guildMember.roles.map(async (id) =>
@@ -433,7 +430,6 @@ export default class DeleteEditGetMessage extends Route {
 
 		set.status = 204;
 
-		// eslint-disable-next-line sonarjs/no-redundant-jump, no-useless-return
 		return;
 	}
 
@@ -513,7 +509,6 @@ export default class DeleteEditGetMessage extends Route {
 				return unknownChannel.toJSON();
 			}
 
-			// eslint-disable-next-line @typescript-eslint/promise-function-async
 			const permissionOverrides = channel.permissionOverrides
 				? ((
 						await Promise.all(
@@ -523,7 +518,7 @@ export default class DeleteEditGetMessage extends Route {
 						)
 					).filter(Boolean) as PermissionsOverrides[])
 				: [];
-			// eslint-disable-next-line @typescript-eslint/promise-function-async
+
 			const roles = (
 				await Promise.all(
 					guildMember.roles.map(async (id) =>
@@ -640,7 +635,9 @@ export default class DeleteEditGetMessage extends Route {
 		for (const bucket of buckets) {
 			const message = await this.fetchMessage(channelId, messageId, bucket);
 
-			if (message) return message;
+			if (message) {
+				return message;
+			}
 		}
 
 		return null;

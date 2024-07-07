@@ -2,10 +2,16 @@ import type WebSocket from "../../../WebSocket";
 import type { RoleUpdate } from "../../Types/role/update";
 
 const isRolePayload = (data: unknown): data is RoleUpdate => {
-	if (typeof data !== "object" || data === null || data === undefined) return false;
+	if (typeof data !== "object" || data === null || data === undefined) {
+		return false;
+	}
 
-	if (!("guildId" in data)) return false;
-	if (!("role" in data)) return false;
+	if (!("guildId" in data)) {
+		return false;
+	}
+	if (!("role" in data)) {
+		return false;
+	}
 	return Boolean(!("userId" in data));
 };
 

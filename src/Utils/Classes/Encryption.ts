@@ -15,7 +15,9 @@ class Encryption {
 
 	public static encrypt(data: string): string {
 		try {
-			if (this.isEncrypted(data)) return data;
+			if (this.isEncrypted(data)) {
+				return data;
+			}
 
 			const cipher = crypto.createCipheriv(this.config.algorithm, this.config.securityKey, this.config.initVector);
 
@@ -30,22 +32,30 @@ class Encryption {
 	}
 
 	public static decrypt(data: string, raw = false): string {
-		if (data === "" || data === null) return data;
-		
+		if (data === "" || data === null) {
+			return data;
+		}
+
 		try {
 			const decipher = crypto.createDecipheriv(this.config.algorithm, this.config.securityKey, this.config.initVector);
 			const decrypted = decipher.update(data, "hex", "utf8") + decipher.final("utf8");
 			const cleaned = Encryption.cleanData(decrypted);
 
-			if (raw) return cleaned;
-			
+			if (raw) {
+				return cleaned;
+			}
+
 			// ? THIS, is the most TERRIBLE fix I've done, the issue here is that for some reason, some ids get treated as being encrypted
 			// ? So, if cleaned.data does not exist, but cleaned does, and its a valid snowflake, just return the data - DarkerInk 3/12/2024
-			if (!cleaned.data && cleaned && App.snowflake.validate(data)) return data;
+			if (!cleaned.data && cleaned && App.snowflake.validate(data)) {
+				return data;
+			}
 
 			return cleaned.data;
 		} catch {
-			if (typeof data === "string" && data.length > 0) return data;
+			if (typeof data === "string" && data.length > 0) {
+				return data;
+			}
 
 			throw new Error(`Failed to decrypt data ${data}`);
 		}
@@ -55,9 +65,9 @@ class Encryption {
 		try {
 			const decipher = crypto.createDecipheriv(this.config.algorithm, this.config.securityKey, this.config.initVector);
 			const decrypted = decipher.update(item, "hex", "utf8") + decipher.final("utf8");
-			
+
 			const cleaned = Encryption.cleanData(decrypted);
-			
+
 			return cleaned?.data !== undefined;
 		} catch {
 			return false;
@@ -67,13 +77,21 @@ class Encryption {
 	private static fixData(data: any): string {
 		let fixedData = data;
 
-		if (typeof fixedData === "object") fixedData = JSON.stringify(data);
+		if (typeof fixedData === "object") {
+			fixedData = JSON.stringify(data);
+		}
 
-		if (typeof fixedData === "undefined") fixedData = "";
+		if (typeof fixedData === "undefined") {
+			fixedData = "";
+		}
 
-		if (typeof fixedData !== "string") fixedData = String(data);
+		if (typeof fixedData !== "string") {
+			fixedData = String(data);
+		}
 
-		if (typeof fixedData !== "string") throw new Error(`Failed to stringify data ${typeof fixedData}, ${fixedData}`);
+		if (typeof fixedData !== "string") {
+			throw new Error(`Failed to stringify data ${typeof fixedData}, ${fixedData}`);
+		}
 
 		return fixedData;
 	}
@@ -88,12 +106,16 @@ class Encryption {
 
 	public static completeDecryption<T = any>(items: T, raw = false): T {
 		if (typeof items === "string") {
-			if (Encryption.isEncrypted(items)) return Encryption.decrypt(items, raw) as T;
+			if (Encryption.isEncrypted(items)) {
+				return Encryption.decrypt(items, raw) as T;
+			}
 
 			return items;
 		}
 
-		if (typeof items !== "object" || items === null) return items;
+		if (typeof items !== "object" || items === null) {
+			return items;
+		}
 
 		if (!Array.isArray(items)) {
 			const newObject: any = {};
@@ -118,13 +140,19 @@ class Encryption {
 
 	public static completeEncryption<T = any>(items: T): T {
 		if (typeof items === "string") {
-			if (Encryption.isEncrypted(items)) return items;
+			if (Encryption.isEncrypted(items)) {
+				return items;
+			}
 
 			return Encryption.encrypt(items) as T;
 		}
 
-		if (typeof items !== "object" || items === null) return items;
-		if (["number", "boolean"].includes(typeof items)) return items;
+		if (typeof items !== "object" || items === null) {
+			return items;
+		}
+		if (["number", "boolean"].includes(typeof items)) {
+			return items;
+		}
 
 		if (!Array.isArray(items)) {
 			const newObject: any = {};

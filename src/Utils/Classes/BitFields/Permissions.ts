@@ -39,21 +39,28 @@ class Permissions {
 			perms.includes("Administrator") &&
 			!ignoreAdmin &&
 			this.bits.some(([bits]) => BigInt(bits) === permissions.Administrator.int)
-		)
+		) {
 			return true;
+		}
 
 		for (const perm of perms) {
 			const group = this.getGroupFromSubPermission(perm)!;
 
 			const index = this.bits.findIndex(([bits]) => BigInt(bits) === permissions[group].int);
 
-			if (index === -1) return false;
+			if (index === -1) {
+				return false;
+			}
 
 			// @ts-expect-error idc
-			if (type === "all" && !this.bits[index][1].has(permissions[group].subPermissions[perm])) return false;
+			if (type === "all" && !this.bits[index][1].has(permissions[group].subPermissions[perm])) {
+				return false;
+			}
 
 			// @ts-expect-error idc
-			if (this.bits[index][1].has(permissions[group].subPermissions[perm])) return true;
+			if (this.bits[index][1].has(permissions[group].subPermissions[perm])) {
+				return true;
+			}
 		}
 
 		return type === "all";
@@ -98,8 +105,9 @@ class Permissions {
 
 	private getGroupFromSubPermission(subPermission: PermissionKey): keyof typeof permissions | null {
 		for (const group of Object.keys(permissions)) {
-			if (subPermission in permissions[group as keyof typeof permissions].subPermissions)
+			if (subPermission in permissions[group as keyof typeof permissions].subPermissions) {
 				return group as keyof typeof permissions;
+			}
 		}
 
 		return null;
@@ -134,9 +142,10 @@ class Permissions {
 
 		for (const [group, stuff] of Object.entries(permissions)) {
 			for (const [subPermission] of Object.entries(stuff.subPermissions)) {
-				if (!obj[group]) obj[group] = {};
+				if (!obj[group]) {
+					obj[group] = {};
+				}
 
-				// @ts-expect-error idc
 				obj[group][subPermission] = this.has([subPermission as PermissionKey], true, "some");
 			}
 		}
@@ -170,4 +179,4 @@ class Permissions {
 
 export default Permissions;
 
-export { type PermissionKey };
+export type { PermissionKey };

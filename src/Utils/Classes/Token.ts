@@ -19,7 +19,9 @@ class Token {
 	public static validateToken(Token: string): boolean {
 		const [snowflakeBase64, stringDated, hmacSignature] = Token.split(".");
 
-		if (!snowflakeBase64 || !stringDated || !hmacSignature) return false;
+		if (!snowflakeBase64 || !stringDated || !hmacSignature) {
+			return false;
+		}
 
 		const hmac = crypto.createHmac("sha256", App.config.encryption.tokenKey);
 
@@ -34,7 +36,9 @@ class Token {
 	} {
 		const [snowflakeBase64, stringDated] = Token.split(".");
 
-		if (!snowflakeBase64 || !stringDated) throw new Error("Invalid token provided.");
+		if (!snowflakeBase64 || !stringDated) {
+			throw new Error("Invalid token provided.");
+		}
 
 		const snowflake = Buffer.from(snowflakeBase64, "base64url").toString("utf8");
 

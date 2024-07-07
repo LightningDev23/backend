@@ -21,7 +21,7 @@ const channels = {
 	guildMember: ["add", "remove", "update", "ban", "unban", "kick", "chunk"],
 	sessions: ["create", "delete"],
 	internal: ["routing"],
-	relationships: ["create", "update", "delete"]
+	relationships: ["create", "update", "delete"],
 } as const;
 
 // basically returns "channel.create" | "channel.delete" etc
@@ -52,13 +52,19 @@ class RabbitMQ {
 	}
 
 	public on(event: events, data: func) {
-		if (!this.#events.has(event)) this.#events.set(event, new Set());
+		if (!this.#events.has(event)) {
+			this.#events.set(event, new Set());
+		}
 
 		this.#events.get(event)?.add(data);
 	}
 
 	public emit(event: events, data: opts) {
-		if (this.#events.get(event)) for (const func of this.#events.get(event)!) func(data);
+		if (this.#events.get(event)) {
+			for (const func of this.#events.get(event)!) {
+				func(data);
+			}
+		}
 	}
 
 	public async init() {
@@ -74,7 +80,6 @@ class RabbitMQ {
 
 				await this.channel.bindQueue(queue, `${topic}.${type}`, "");
 
-				// eslint-disable-next-line @typescript-eslint/no-loop-func
 				await this.channel.consume(queue, (msg) => {
 					if (msg) {
 						const parsed = this.decompress(msg.content);
@@ -112,13 +117,11 @@ class RabbitMQ {
 		const string = this.jsonStringify(data);
 		const stringToUint8Array = new TextEncoder().encode(string);
 
-		// eslint-disable-next-line n/no-sync -- theres no other options
 		return Bun.gzipSync(stringToUint8Array);
 	}
 
 	private decompress(data: Buffer) {
 		try {
-			// eslint-disable-next-line n/no-sync -- theres no other options
 			const decompressed = Bun.gunzipSync(data);
 			const uint8ArrayToString = new TextDecoder().decode(decompressed);
 

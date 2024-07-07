@@ -28,7 +28,7 @@ export default class LeaveGuild extends Route {
 	)
 	public async deleteGuild({ user, params, set }: CreateRoute<"/:guildId", any, [UserMiddlewareType]>) {
 		const notFound = errorGen.UnknownGuild();
-		
+
 		if (!user.guilds.includes(params.guildId)) {
 			notFound.addError({
 				guildId: {
@@ -47,7 +47,7 @@ export default class LeaveGuild extends Route {
 			userId: Encryption.encrypt(user.id),
 			left: false,
 		}))!;
-		
+
 		if (!guildMember) {
 			set.status = 500;
 
@@ -84,7 +84,6 @@ export default class LeaveGuild extends Route {
 			return noPermission.toJSON();
 		}
 
-		
 		await this.App.cassandra.models.GuildMember.insert({
 			guildId: Encryption.encrypt(params.guildId),
 			userId: Encryption.encrypt(user.id),
@@ -95,16 +94,15 @@ export default class LeaveGuild extends Route {
 			channelAcks: [],
 			joinedAt: guildMember.joinedAt,
 			nickname: null,
-			timeouts: []
+			timeouts: [],
 		});
-		
+
 		await this.App.cassandra.models.GuildMember.remove({
 			guildId: Encryption.encrypt(params.guildId),
 			userId: Encryption.encrypt(user.id),
 			guildMemberId: guildMember.guildMemberId,
 			left: false,
-		})
-		
+		});
 
 		await this.App.cassandra.models.User.update({
 			userId: Encryption.encrypt(user.id),
@@ -124,7 +122,6 @@ export default class LeaveGuild extends Route {
 
 		set.status = 204;
 
-		// eslint-disable-next-line sonarjs/no-redundant-jump, no-useless-return
 		return;
 	}
 }

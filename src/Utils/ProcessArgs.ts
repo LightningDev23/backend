@@ -4,7 +4,9 @@ const processArgs = <T extends string>(allowedArgs: T[]): { invalid: (T | string
 	const valid: T[] = [];
 	const invalid: T[] = [];
 
-	if (!Array.isArray(allowedArgs)) throw new TypeError("Allowed args must be an array.");
+	if (!Array.isArray(allowedArgs)) {
+		throw new TypeError("Allowed args must be an array.");
+	}
 
 	for (const arg of process.argv) {
 		const isArgRegex = /^--(?<args>[a-z]+)$/;

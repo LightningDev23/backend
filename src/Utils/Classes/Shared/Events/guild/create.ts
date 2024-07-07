@@ -5,10 +5,16 @@ import PermissionHandler from "@/Utils/Versioning/v1/PermissionCheck.ts";
 import type { GuildCreate } from "../../Types/guild/create";
 
 const isGuildPayload = (data: unknown): data is GuildCreate => {
-	if (typeof data !== "object" || data === null || data === undefined) return false;
+	if (typeof data !== "object" || data === null || data === undefined) {
+		return false;
+	}
 
-	if (!("guild" in data)) return false;
-	if (!("member" in data)) return false;
+	if (!("guild" in data)) {
+		return false;
+	}
+	if (!("member" in data)) {
+		return false;
+	}
 
 	return "userId" in data;
 };
@@ -54,8 +60,9 @@ const guildCreate = (ws: WebSocket, data: unknown) => {
 			topics.push(`channel:messages:${channel.id}:pins`);
 		}
 
-		if (permCheck.hasChannelPermission(channel.id, ["ViewChannels", "ViewMessageHistory"]))
+		if (permCheck.hasChannelPermission(channel.id, ["ViewChannels", "ViewMessageHistory"])) {
 			topics.push(`channel:messages:${channel.id}:typing`); // ? can only see typing events if they can see the channel and view messages
+		}
 
 		topics.push(`channel:${channel.id}`);
 	}

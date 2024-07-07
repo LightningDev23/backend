@@ -12,7 +12,9 @@ export const getEditedChannels = (before: Channel[], current: Channel[]) => {
 			continue;
 		}
 
-		if (Bun.deepEquals(channel, beforeChannel)) continue;
+		if (Bun.deepEquals(channel, beforeChannel)) {
+			continue;
+		}
 
 		changedChannels.push(channel);
 	}

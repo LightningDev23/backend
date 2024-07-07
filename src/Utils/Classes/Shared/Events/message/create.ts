@@ -3,11 +3,17 @@ import type WebSocket from "../../../WebSocket";
 import type { MessageCreate } from "../../Types/message/create";
 
 const isMessagePayload = (data: unknown): data is MessageCreate => {
-	if (typeof data !== "object" || data === null || data === undefined) return false;
+	if (typeof data !== "object" || data === null || data === undefined) {
+		return false;
+	}
 
-	if (!("channelId" in data) || !("message" in data)) return false;
+	if (!("channelId" in data) || !("message" in data)) {
+		return false;
+	}
 
-	if (typeof data.message !== "object" || data.message === null || data.message === undefined) return false;
+	if (typeof data.message !== "object" || data.message === null || data.message === undefined) {
+		return false;
+	}
 
 	return !(
 		!("id" in data.message) ||

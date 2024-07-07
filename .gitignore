@@ -37,10 +37,6 @@ dtests/
 .pnp.*
 .yarn/
 
-# Cache
-.prettiercache
-.eslintcache
-
 # Old Stuff
 oldApiRoutes/
 old/

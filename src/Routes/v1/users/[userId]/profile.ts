@@ -16,7 +16,7 @@ import Route from "@/Utils/Classes/Routing/Route.ts";
 
 interface ProfileResponse {
 	// TODO: Add connections (Discord, Twitter (X), Github, Steam, Spotify (Not sure if we can do this one), Reddit, Youtube, Twitch)
-	bio: string | null; 
+	bio: string | null;
 	connections: unknown[];
 	mutualFriends: string[];
 	mutualGuilds: string[];
@@ -37,11 +37,14 @@ export default class Profile extends Route {
 		}),
 	)
 	public async getProfile({ params, set, user }: CreateRoute<"/users/:userId/profile", any, [UserMiddlewareType]>) {
-		const fetchedUser = await this.App.cassandra.models.User.get({
-			userId: Encryption.encrypt(params.userId),
-		}, {
-			fields: ["guilds"]
-		});
+		const fetchedUser = await this.App.cassandra.models.User.get(
+			{
+				userId: Encryption.encrypt(params.userId),
+			},
+			{
+				fields: ["guilds"],
+			},
+		);
 
 		if (!fetchedUser) {
 			const userNotFound = errorGen.InvalidUser();
@@ -57,16 +60,19 @@ export default class Profile extends Route {
 
 			return userNotFound.toJSON();
 		}
-		
-		const settings = await this.App.cassandra.models.Settings.get({
-			userId: Encryption.encrypt(params.userId),
-		}, {
-			fields: ["bio"]
-		})
+
+		const settings = await this.App.cassandra.models.Settings.get(
+			{
+				userId: Encryption.encrypt(params.userId),
+			},
+			{
+				fields: ["bio"],
+			},
+		);
 
 		const mutualGuilds = user.guilds.filter((guild) => fetchedUser.guilds.includes(Encryption.encrypt(guild)));
 
-		return  {
+		return {
 			connections: [],
 			mutualFriends: [],
 			mutualGuilds,

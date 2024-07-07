@@ -2,9 +2,13 @@ import type WebSocket from "@/Utils/Classes/WebSocket";
 import type { BanDelete } from "../../Types/ban/delete";
 
 const isBanPayload = (data: unknown): data is BanDelete => {
-	if (typeof data !== "object" || data === null || data === undefined) return false;
+	if (typeof data !== "object" || data === null || data === undefined) {
+		return false;
+	}
 
-	if (!("ban" in data)) return false;
+	if (!("ban" in data)) {
+		return false;
+	}
 	return Boolean(!("userId" in data));
 };
 

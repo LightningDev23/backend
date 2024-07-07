@@ -66,13 +66,17 @@ class PermissionHandler {
 	 */
 	public hasAnyRole(permission: PermissionKey[], dupe?: boolean): boolean {
 		// ? If you are the owner or co-owner, you have all permissions
-		if (this.guildMemberFlags.has("Owner") || this.guildMemberFlags.has("CoOwner")) return true;
+		if (this.guildMemberFlags.has("Owner") || this.guildMemberFlags.has("CoOwner")) {
+			return true;
+		}
 
 		const roles = this.memberRoles
 			.filter((Role) => Role.permissions.has(permission))
 			.sort((a, b) => b.position - a.position);
 
-		if (dupe) return roles.length > 0;
+		if (dupe) {
+			return roles.length > 0;
+		}
 
 		return roles.length > 0 && roles[0]!.permissions.has(permission);
 	}
@@ -85,11 +89,15 @@ class PermissionHandler {
 		permissions: [bigint | string, bigint | string][];
 		position: number;
 	}): boolean {
-		if (this.guildMemberFlags.has("Owner") || this.guildMemberFlags.has("CoOwner")) return true;
+		if (this.guildMemberFlags.has("Owner") || this.guildMemberFlags.has("CoOwner")) {
+			return true;
+		}
 
 		const membersHighestRole = this.memberRoles.sort((a, b) => b.position - a.position)[0];
 
-		if (!membersHighestRole) return false;
+		if (!membersHighestRole) {
+			return false;
+		}
 
 		return membersHighestRole.position > role.position;
 	}
@@ -100,9 +108,13 @@ class PermissionHandler {
 	public hasChannelPermission(channelId: string, permission: PermissionKey[]): boolean {
 		const channel = this.channels.find((Channel) => Channel.id === channelId);
 
-		if (!channel) return false;
+		if (!channel) {
+			return false;
+		}
 
-		if (this.guildMemberFlags.has("Owner") || this.guildMemberFlags.has("CoOwner")) return true;
+		if (this.guildMemberFlags.has("Owner") || this.guildMemberFlags.has("CoOwner")) {
+			return true;
+		}
 
 		const overrides = channel.overrides.filter(
 			(Override) => Override.id === this.guildMemberId || this.memberRoles.some((Role) => Role.id === Override.id),

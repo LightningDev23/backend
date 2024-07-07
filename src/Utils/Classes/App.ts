@@ -1,4 +1,3 @@
-/* eslint-disable id-length */
 import process from "node:process";
 import { CacheManager } from "@kastelll/util";
 import * as Sentry from "@sentry/bun";
@@ -19,7 +18,7 @@ import SystemInfo from "./SystemInfo.ts";
 type GitType = "Added" | "Copied" | "Deleted" | "Ignored" | "Modified" | "None" | "Renamed" | "Unmerged" | "Untracked";
 
 class App {
-	public ready: boolean = false;
+	public ready = false;
 
 	public static snowflake: Snowflake = new Snowflake(
 		Constants.snowflake.Epoch,
@@ -42,9 +41,9 @@ class App {
 
 	public static staticLogger: CustomLogger = new CustomLogger();
 
-	private clean: boolean = false;
+	private clean = false;
 
-	public internetAccess: boolean = false;
+	public internetAccess = false;
 
 	public static git: SimpleGit = simpleGit();
 
@@ -53,9 +52,9 @@ class App {
 		type: GitType;
 	}[] = [];
 
-	public static gitBranch: string = "Unknown";
+	public static gitBranch = "Unknown";
 
-	public static gitCommit: string = "Unknown";
+	public static gitCommit = "Unknown";
 
 	public static typeIndex = {
 		A: "Added",
@@ -156,20 +155,28 @@ class App {
 	}
 
 	public checkObjectForBlacklistedFields(object: unknown, blacklistedFields: string[]): boolean {
-		if (typeof object !== "object" || object === null || object instanceof Date) return false;
+		if (typeof object !== "object" || object === null || object instanceof Date) {
+			return false;
+		}
 
 		if (Array.isArray(object)) {
 			for (const item of object) {
-				if (this.checkObjectForBlacklistedFields(item, blacklistedFields)) return true;
+				if (this.checkObjectForBlacklistedFields(item, blacklistedFields)) {
+					return true;
+				}
 			}
 
 			return false;
 		}
 
 		for (const [key, value] of Object.entries(object)) {
-			if (blacklistedFields.includes(key)) return true;
+			if (blacklistedFields.includes(key)) {
+				return true;
+			}
 
-			if (this.checkObjectForBlacklistedFields(value, blacklistedFields)) return true;
+			if (this.checkObjectForBlacklistedFields(value, blacklistedFields)) {
+				return true;
+			}
 		}
 
 		return false;
@@ -354,10 +361,18 @@ class App {
 				return this.status.has("offline", int);
 			},
 			get: (int: number) => {
-				if (this.status.has("offline", int)) return "offline";
-				if (this.status.has("dnd", int)) return "dnd";
-				if (this.status.has("idle", int)) return "idle";
-				if (this.status.has("invisible", int)) return "invisible";
+				if (this.status.has("offline", int)) {
+					return "offline";
+				}
+				if (this.status.has("dnd", int)) {
+					return "dnd";
+				}
+				if (this.status.has("idle", int)) {
+					return "idle";
+				}
+				if (this.status.has("invisible", int)) {
+					return "invisible";
+				}
 
 				return "online";
 			},

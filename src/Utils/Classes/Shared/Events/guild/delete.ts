@@ -3,7 +3,9 @@ import type WebSocket from "@/Utils/Classes/WebSocket";
 import type { GuildDelete } from "../../Types/guild/delete";
 
 const isGuildPayload = (data: unknown): data is GuildDelete => {
-	if (typeof data !== "object" || data === null || data === undefined) return false;
+	if (typeof data !== "object" || data === null || data === undefined) {
+		return false;
+	}
 
 	return "guildId" in data;
 };

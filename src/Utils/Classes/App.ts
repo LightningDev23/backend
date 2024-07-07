@@ -14,6 +14,7 @@ import Question from "./Question.ts";
 import type { GetChannelTypes, channels } from "./Shared/RabbitMQ.ts";
 import Snowflake from "./Snowflake.ts";
 import SystemInfo from "./SystemInfo.ts";
+import Client from "./DB/Client.ts";
 
 type GitType = "Added" | "Copied" | "Deleted" | "Ignored" | "Modified" | "None" | "Renamed" | "Unmerged" | "Untracked";
 
@@ -121,6 +122,17 @@ class App {
 			this.config.scyllaDB.networkTopologyStrategy,
 			this.config.scyllaDB.durableWrites,
 		);
+		
+		await Client.getInstance().connect({
+			keyspace: this.config.scyllaDB.keyspace,
+			nodes: this.config.scyllaDB.nodes,
+			password: this.config.scyllaDB.password,
+			username: this.config.scyllaDB.username,
+			db: {
+				durableWrites: this.config.scyllaDB.durableWrites,
+				networkTopologyStrategy: this.config.scyllaDB.networkTopologyStrategy
+			}
+		})
 
 		this.cache.on("Connected", () => this.logger.info("Connected to Redis"));
 		this.cache.on("Error", (err) => {

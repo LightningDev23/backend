@@ -14,6 +14,8 @@ import { reservedNames, ExtractValueName, snakeifyString } from "./createTableTy
 
 const tableAndColumnNameRegex = /^[A-Z_a-z]\w*$/;
 
+type MergeUnions<A, B> = A | B;
+
 class Table<T> {
 	readonly #_options: T;
 
@@ -243,17 +245,7 @@ class Table<T> {
 					continue;
 				}
 
-				const fixedType = Array.isArray(value)
-					? value.map((v) => {
-							if (Long.isLong(v)) {
-								return BigInt(v.toString());
-							}
-
-							return v;
-						})
-					: value;
-
-				finishedData[this.convertBack(key)] = fixedType;
+				finishedData[this.convertBack(key)] = this.recursiveConvert(value);
 			}
 
 			const migratedData = migration.migrate(Client.getInstance(), structuredClone(finishedData), version) as Data;
@@ -329,9 +321,9 @@ class Table<T> {
 
 	public async get<
 		AdditionalColumns extends Record<string, AllTypes>,
-		Fields extends (keyof this["options"]["columns"] & keyof AdditionalColumns)[] | "*" = "*",
+		Fields extends MergeUnions<keyof this["options"]["columns"], keyof AdditionalColumns>[] | "*" = "*",
 	>(
-		filter: Partial<ConvertObjectToNormal<AdditionalColumns> | ExtractTypesFromCreateTable<this["options"]>>,
+		filter: Partial<ExtractTypesFromCreateTable<this["options"]>>,
 		options?: {
 			/**
 			 * This is for historical purposes, if you want to fetch specific columns which are no longer in local but you are CERTAIN they are in remote
@@ -340,10 +332,11 @@ class Table<T> {
 			allowFiltering?: boolean;
 			fields?: Fields;
 		},
-	): Promise<PublicGetReturnType<
-		ConvertObjectToNormal<AdditionalColumns> & ExtractTypesFromCreateTable<this["options"]>,
-		Fields
-	> | null> {
+	): Promise<
+		| (PublicGetReturnType<ExtractTypesFromCreateTable<this["options"]>, Fields> &
+				PublicGetReturnType<ConvertObjectToNormal<AdditionalColumns, this["options"]["types"]>, Fields>)
+		| null
+	> {
 		if (
 			!options ||
 			!options.fields ||
@@ -402,7 +395,8 @@ class Table<T> {
 
 		let finishedData: Partial<
 			PublicGetReturnType<
-				ConvertObjectToNormal<AdditionalColumns> & ExtractTypesFromCreateTable<this["options"]>,
+				ConvertObjectToNormal<AdditionalColumns, this["options"]["types"]> &
+					ExtractTypesFromCreateTable<this["options"]>,
 				Fields
 			>
 		> = {};
@@ -427,7 +421,8 @@ class Table<T> {
 			if (foundMappedType.value.toString().includes("list") && !value) {
 				finishedData[
 					this.convertBack(key) as keyof PublicGetReturnType<
-						ConvertObjectToNormal<AdditionalColumns> & ExtractTypesFromCreateTable<this["options"]>,
+						ConvertObjectToNormal<AdditionalColumns, this["options"]["types"]> &
+							ExtractTypesFromCreateTable<this["options"]>,
 						Fields
 					>
 				] = [] as never;
@@ -435,22 +430,13 @@ class Table<T> {
 				continue;
 			}
 
-			const fixedType = Array.isArray(value)
-				? value.map((v) => {
-						if (Long.isLong(v)) {
-							return BigInt(v.toString());
-						}
-
-						return v;
-					})
-				: value;
-
 			finishedData[
 				this.convertBack(key) as keyof PublicGetReturnType<
-					ConvertObjectToNormal<AdditionalColumns> & ExtractTypesFromCreateTable<this["options"]>,
+					ConvertObjectToNormal<AdditionalColumns, this["options"]["types"]> &
+						ExtractTypesFromCreateTable<this["options"]>,
 					Fields
 				>
-			] = fixedType;
+			] = this.recursiveConvert(value);
 		}
 
 		if (this.versionName !== "") {
@@ -475,18 +461,57 @@ class Table<T> {
 		}
 
 		return finishedData as PublicGetReturnType<
-			ConvertObjectToNormal<AdditionalColumns> & ExtractTypesFromCreateTable<this["options"]>,
+			ConvertObjectToNormal<AdditionalColumns, this["options"]["types"]> & ExtractTypesFromCreateTable<this["options"]>,
 			Fields
 		>;
 	}
 
+	private recursiveConvert(obj: Record<string, unknown> | unknown) {
+		if (Long.isLong(obj)) {
+			return BigInt(obj.toString());
+		}
+
+		if (typeof obj !== "object") {
+			return obj;
+		}
+		
+		if (Array.isArray(obj)) {
+			return obj.map((v) => this.recursiveConvert(v));
+		}
+		
+		if (obj === null || obj === undefined || obj instanceof Date) {
+			return obj;
+		}
+
+		const newObj: Record<string, unknown> = {};
+
+		for (const [key, value] of Object.entries(obj)) {
+			if (Long.isLong(value)) {
+				newObj[this.convertBack(key)] = BigInt(value.toString());
+			} else if (typeof value === "object") {
+				newObj[this.convertBack(key)] = Array.isArray(value)
+					? value.map((v) => this.recursiveConvert(v))
+					: this.recursiveConvert(value);
+			} else {
+				newObj[this.convertBack(key)] = value;
+			}
+		}
+
+		return newObj;
+	}
+
 	public async update<
 		AdditionalColumns extends Record<string, AllTypes>,
-		Filter extends Partial<ConvertObjectToNormal<AdditionalColumns> | ExtractTypesFromCreateTable<this["options"]>>,
+		Filter extends Partial<
+			ConvertObjectToNormal<AdditionalColumns, this["options"]["types"]> | ExtractTypesFromCreateTable<this["options"]>
+		>,
 	>(
 		filter: Filter,
 		update: Omit<
-			Partial<ConvertObjectToNormal<AdditionalColumns> & ExtractTypesFromCreateTable<this["options"]>>,
+			Partial<
+				ConvertObjectToNormal<AdditionalColumns, this["options"]["types"]> &
+					ExtractTypesFromCreateTable<this["options"]>
+			>,
 			keyof Filter
 		>,
 		options?: {
@@ -615,9 +640,11 @@ class Table<T> {
 
 	public async find<
 		AdditionalColumns extends Record<string, AllTypes> = {},
-		Fields extends (keyof this["options"]["columns"] & keyof AdditionalColumns)[] | "*" = "*",
+		Fields extends MergeUnions<keyof this["options"]["columns"], keyof AdditionalColumns>[] | "*" = "*",
 	>(
-		filter: Partial<ConvertObjectToNormal<AdditionalColumns> & ExtractTypesFromCreateTable<this["options"]>>,
+		filter: Partial<
+			ConvertObjectToNormal<AdditionalColumns, this["options"]["types"]> & ExtractTypesFromCreateTable<this["options"]>
+		>,
 		options?: {
 			/**
 			 * This is for historical purposes, if you want to fetch specific columns which are no longer in local but you are CERTAIN they are in remote
@@ -628,10 +655,8 @@ class Table<T> {
 			limit?: number;
 		},
 	): Promise<
-		PublicGetReturnType<
-			ConvertObjectToNormal<AdditionalColumns> & ExtractTypesFromCreateTable<this["options"]>,
-			Fields
-		>[]
+		PublicGetReturnType<ExtractTypesFromCreateTable<this["options"]>, Fields> &
+			PublicGetReturnType<ConvertObjectToNormal<AdditionalColumns, this["options"]["types"]>, Fields>[]
 	> {}
 
 	/**

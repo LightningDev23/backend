@@ -267,8 +267,10 @@ class Connection extends EventEmitter {
 	}
 
 	public async createTables() {
-		const files = await this.walkDirectory(this.TableDirectory);
+		const files = (await this.walkDirectory(this.TableDirectory)).filter((file) => file.endsWith(".cql"));
 
+		return true;
+		
 		for (const file of files) {
 			const query = await fs.readFile(file, "utf8");
 

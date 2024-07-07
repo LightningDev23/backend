@@ -71,7 +71,6 @@
 				"noDefaultExport": "off",
 				"noNegationElse": "error",
 				"noParameterAssign": "error",
-				"noRestrictedGlobals": { "level": "off", "options": {} },
 				"noUselessElse": "off",
 				"noVar": "error",
 				"useBlockStatements": "error",

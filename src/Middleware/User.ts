@@ -4,6 +4,8 @@ import Encryption from "@/Utils/Classes/Encryption.ts";
 import errorGen from "@/Utils/Classes/ErrorGen.ts";
 import type { CreateMiddleware, CreateRoute } from "@/Utils/Classes/Routing/Route.ts";
 import Token from "@/Utils/Classes/Token.ts";
+import { settingsTable } from "@/Utils/Cql/Tables/SettingsTable.ts";
+import { usersTable } from "@/Utils/Cql/Tables/UserTable.ts";
 
 export interface UserMiddlewareType extends Record<string, any> {
 	user: {
@@ -111,9 +113,10 @@ const userMiddleware = (options: UserMiddleware) => {
 
 			const decodedToken = Token.decodeToken(authHeader);
 
-			const usersSettings = await app.cassandra.models.Settings.get(
+			const userSettings = await settingsTable.get(
 				{
 					userId: Encryption.encrypt(decodedToken.Snowflake),
+					tokens: []
 				},
 				{
 					fields: [
@@ -133,7 +136,7 @@ const userMiddleware = (options: UserMiddleware) => {
 				},
 			);
 
-			const userData = await app.cassandra.models.User.get(
+			const userData = await usersTable.get(
 				{
 					userId: Encryption.encrypt(decodedToken.Snowflake),
 				},
@@ -141,10 +144,11 @@ const userMiddleware = (options: UserMiddleware) => {
 					fields: ["email", "userId", "flags", "password", "publicFlags", "guilds", "username"],
 				},
 			);
+			
 
-			if (!usersSettings || !userData) {
+			if (!userSettings || !userData) {
 				app.logger.debug("User settings wasn't found", decodedToken.Snowflake);
-				app.logger.debug(userData ?? "null", usersSettings ?? "null");
+				app.logger.debug(userData ?? "null", userSettings ?? "null");
 
 				unAuthorizedError.addError({
 					user: {
@@ -153,7 +157,7 @@ const userMiddleware = (options: UserMiddleware) => {
 					},
 				});
 
-				if ((userData && !usersSettings) || (!userData && usersSettings)) {
+				if ((userData && !userSettings) || (!userData && userSettings)) {
 					// darkerink: just in case there is one but not the other (has happened in very rare cases) contacting support will be the only way to fix this (for now);
 					set.status = 500;
 
@@ -165,7 +169,7 @@ const userMiddleware = (options: UserMiddleware) => {
 				}
 			}
 
-			if (!usersSettings?.tokens?.some((Token) => Token.token === Encryption.encrypt(authHeader as string))) {
+			if (!userSettings?.tokens?.some((Token) => Token.token === Encryption.encrypt(authHeader as string))) {
 				app.logger.debug("Token not found in the user settings");
 
 				unAuthorizedError.addError({
@@ -180,7 +184,7 @@ const userMiddleware = (options: UserMiddleware) => {
 				return unAuthorizedError.toJSON();
 			}
 
-			const userFlags = new FlagFields(userData.flags, userData.publicFlags);
+			const userFlags = new FlagFields(userData.flags ?? "0", userData.publicFlags ?? "0");
 			const accountNotAvailableError = errorGen.AccountNotAvailable();
 
 			if (
@@ -316,8 +320,8 @@ const userMiddleware = (options: UserMiddleware) => {
 
 			const completeDecrypted = Encryption.completeDecryption({
 				...userData,
-				flags: userData.flags.toString(),
-				publicFlags: userData.publicFlags.toString(),
+				flags: (userData.flags ?? "").toString(),
+				publicFlags: (userData.publicFlags ?? "").toString(),
 			});
 
 			return {
@@ -331,16 +335,16 @@ const userMiddleware = (options: UserMiddleware) => {
 					guilds: completeDecrypted.guilds ?? [],
 					username: completeDecrypted.username,
 					settings: Encryption.completeDecryption({
-						bio: usersSettings.bio,
-						guildOrder: usersSettings.guildOrder ?? [],
-						language: usersSettings.language,
-						privacy: usersSettings.privacy,
-						status: usersSettings.status,
-						theme: usersSettings.theme,
-						allowedInvites: usersSettings.allowedInvites ?? 0,
-						customStatus: usersSettings.customStatus,
-						navBarLocation: usersSettings.navLocation ?? "bottom",
-						emojiPack: usersSettings.emojiPack ?? "twemoji",
+						bio: userSettings.bio,
+						guildOrder: userSettings.guildOrder ?? [],
+						language: userSettings.language,
+						privacy: userSettings.privacy,
+						status: userSettings.status,
+						theme: userSettings.theme,
+						allowedInvites: userSettings.allowedInvites ?? 0,
+						customStatus: userSettings.customStatus,
+						navBarLocation: userSettings.navLocation ?? "bottom",
+						emojiPack: userSettings.emojiPack ?? "twemoji",
 					}),
 				},
 			};

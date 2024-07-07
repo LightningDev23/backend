@@ -1,5 +1,7 @@
 import type Client from "./Client.ts";
-import type Table from "./Table.ts";
+
+type IsUnion<T, B = T> = T extends B ? ([B] extends [T] ? false : true) : never;
+type Check<T> = [T] extends [string] ? (string extends T ? false : IsUnion<T> extends true ? true : false) : false;
 
 export type ColumnTypesRaw =
 	| BigIntConstructor
@@ -37,93 +39,70 @@ export type ColumnTypesStrings =
 	| "timestamp";
 
 export type ListableTypes = `list<${ColumnTypesStrings | FrozenTypes}>`;
-
 export type ListableTypesNoFrozen = `list<${ColumnTypesStrings}>`;
-
 export type FrozenTypes = `frozen<${ColumnTypesStrings}>`;
+export type FrozenlessTypes = ColumnTypesRaw | ColumnTypesStrings | ListableTypesNoFrozen | TupleFrozenlessTypes;
+export type TupleFrozenlessTypes = [FrozenlessTypes]; // This replaces the recursive tuple type definition.
 
-export type FrozenlessTypes = ColumnTypesRaw | ColumnTypesStrings | ListableTypesNoFrozen | [FrozenlessTypes];
+export type AllTypes = ColumnTypesRaw | ColumnTypesStrings | FrozenTypes | ListableTypes | TupleAllTypes;
+export type TupleAllTypes = [AllTypes]; // Separates the tuple types to avoid direct recursion.
 
-export type AllTypes = ColumnTypesRaw | ColumnTypesStrings | FrozenTypes | ListableTypes | [AllTypes];
+export type ListAndFreezeType<T extends string> =
+	| `frozen<${T}>`
+	| `list<${T}>`
+	| `list<frozen<${T}>>`
+	| [`frozen<${T}>`]
+	| [`list<${T}>`]
+	| [`list<frozen<${T}>>`]
+	| [T];
 
-export type ListAndFreezeType<T> = T extends string
-	?
-			| `frozen<${T}>`
-			| `list<${T}>`
-			| `list<frozen<${T}>>`
-			| [`frozen<${T}>`]
-			| [`list<${T}>`]
-			| [`list<frozen<${T}>>`]
-			| [T]
-	: never;
-
-type Decrement<N extends number> = N extends 10
-	? 9
-	: N extends 9
-		? 8
-		: N extends 8
-			? 7
-			: N extends 7
-				? 6
-				: N extends 6
-					? 5
-					: N extends 5
-						? 4
-						: N extends 4
-							? 3
-							: N extends 3
-								? 2
-								: N extends 2
-									? 1
-									: N extends 1
-										? 0
-										: never;
-
-export type ConvertType<T extends FrozenlessTypes, Depth extends number = 10> = Depth extends never
-	? never
-	: T extends ColumnTypesRaw
-		? `frozen<${Lowercase<ExtractNameBasedOffConstructor<T>>}>`
-		: T extends ColumnTypesStrings
-			? `frozen<${Lowercase<T>}>`
-			: // @ts-expect-error -- Its fine
-				T extends ListableTypesNoFrozen
-				? `list<${ConvertType<ExtractType<T>, Decrement<Depth>>}>`
-				: T extends [FrozenlessTypes]
-					? `list<${ConvertType<T[0], Decrement<Depth>>}>`
-					: never;
+export type ConvertType<T extends FrozenlessTypes> = T extends ColumnTypesRaw
+	? `frozen<${Lowercase<ExtractNameBasedOffConstructor<T>>}>`
+	: T extends ColumnTypesStrings
+		? `frozen<${Lowercase<T>}>`
+		: T extends ListableTypesNoFrozen
+			? `list<${T}>`
+			: T extends TupleFrozenlessTypes
+				? // @ts-expect-error -- Its fine
+					`list<${T}>`
+				: never;
 
 export type ExtractType<T extends string> = T extends `list<${infer U}>` ? U : never;
 
-export type ConvertToActualType<T> = T extends `list<${infer U}>`
-	? ConvertToActualType<U>[]
-	: T extends `frozen<${infer U}>`
-		? ConvertToActualType<U>
-		: T extends [infer U]
-			? ConvertToActualType<U>[]
-			: T extends "BigInt" | "bigint"
-				? bigint
-				: T extends "Boolean" | "boolean"
-					? boolean
-					: T extends "Timestamp" | "timestamp"
-						? Date
-						: T extends "Number" | "number"
-							? number
-							: T extends "String" | "string"
-								? string
-								: T extends BigIntConstructor
-									? bigint
-									: T extends BooleanConstructor
-										? boolean
-										: T extends DateConstructor
-											? Date
-											: T extends NumberConstructor
-												? number
-												: T extends StringConstructor
-													? string
-													: never;
+export type ConvertToActualType<
+	Type,
+	// @ts-expect-error -- This is fine
+	Types extends Record<string, Record<string, AllTypes | ListAndFreezeType<keyof Types>>>,
+> = Type extends `list<${infer U}>`
+	? ConvertToActualType<U, Types>[]
+	: Type extends `frozen<${infer U}>`
+		? ConvertToActualType<U, Types>
+		: Type extends [infer U]
+			? ConvertToActualType<U, Types>[]
+			: Check<keyof Types> extends false
+				? ConvertBasicTypes<Type>
+				: Type extends keyof Types
+					? ConvertObjectToNormal<Types[Type], Types>
+					: ConvertBasicTypes<Type>;
 
-export type ConvertObjectToNormal<T> = {
-	[K in keyof T]: ConvertToActualType<T[K]>;
+export type ConvertBasicTypes<Type> = Type extends "BigInt" | "bigint"
+	? bigint
+	: Type extends "Boolean" | "boolean"
+		? boolean
+		: Type extends "Timestamp" | "timestamp"
+			? Date
+			: Type extends "Number" | "number" | "Int" | "int"
+				? number
+				: Type extends "String" | "string" | "Text" | "text"
+					? string
+					: null;
+
+export type ConvertObjectToNormal<
+	T,
+	// @ts-expect-error -- This is fine
+	Types extends Record<string, Record<string, AllTypes | ListAndFreezeType<keyof Types>>>,
+> = {
+	[K in keyof T]: ConvertToActualType<T[K], Types>;
 };
 
 export enum DataTypes {
@@ -132,9 +111,7 @@ export enum DataTypes {
 	Date = "timestamp",
 	Number = "int",
 	String = "text",
-
 	Text = "text",
-
 	Timestamp = "timestamp",
 }
 
@@ -180,7 +157,9 @@ interface CassandraTableOptions {
 }
 
 export interface Options<
+	// @ts-expect-error -- This is fine
 	Types extends Record<string, Record<string, AllTypes | ListAndFreezeType<keyof Types>>>,
+	// @ts-expect-error -- This is fine
 	Columns extends Record<string, AllTypes | ListAndFreezeType<keyof Types>>,
 	PrimaryKeys extends keyof Columns | [keyof Columns, keyof Columns],
 	IndexKeys extends keyof Columns,
@@ -344,15 +323,24 @@ export interface Options<
 	with?: CassandraTableOptions;
 }
 
-export type ExtractTypesFromCreateTable<T> = T extends Options<infer _Z, infer U, infer _P, infer _I>
-	? ConvertObjectToNormal<U>
-	: T extends Table<infer T>
-		? ExtractTypesFromCreateTable<T>
-		: never;
+export type ExtractTypesFromCreateTable<T> = T extends Options<infer Types, infer U, infer _P, infer _I>
+	? ConvertObjectToNormal<U, Types>
+	: never;
+
+// @ts-expect-error -- This is fine
+export type ConvertTypesToTypes<T extends Record<string, AllTypes | ListAndFreezeType<keyof T>>> = {
+	// @ts-expect-error -- This is fine
+	[K in keyof T]: ConvertToActualType<T[K], T>;
+};
 
 export type NullifyStuff<T> = {
-	// if the item is an array it cannot be null
-	[K in keyof T]: T[K] extends (infer U)[] ? U[] : T[K] | null;
+	// [K in keyof T]: T[K] extends (infer U)[] ? U[] : T[K] | null;
+	// ? If its an array it cannot be null BUT if its an object inside the array, the stuff in that object can be null so we need to recursively nullify it
+	[K in keyof T]: T[K] extends (infer U)[]
+		? U extends Record<string, unknown>
+			? NullifyStuff<U>[]
+			: U[]
+		: T[K] | null;
 };
 
 export type PublicGetReturnType<T, Fields extends (keyof T)[] | "*" = "*"> = Fields extends "*"

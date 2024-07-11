@@ -44,7 +44,8 @@
 		"api": "bun run src/api.ts",
 		"ws": "bun run src/websocket.ts",
 		"spec": "bun run src/OpenSpec.ts",
-		"dev": "NODE_ENV=development bun run src/index.ts"
+		"dev": "NODE_ENV=development bun run src/index.ts",
+		"migrate": "bun run src/tableMigration.ts"
 	},
 	"keywords": ["chatting"],
 	"engines": {

@@ -144,6 +144,10 @@ class API extends App {
 		this.logger.info(`Loaded ${Object.keys(this.router.routes).length} routes`);
 
 		this.elysiaApp.all("*", async ({ body, headers, path, query, request, set, store }) => {
+			if (this.args.includes("debug")) {
+				this.logger.startTimer(`[Request] ${path}`);
+			}
+
 			const ip = IpUtils.getIp(request, this.elysiaApp.server) ?? "";
 			const isLocalIp = IpUtils.isLocalIp(ip);
 			const snf = this.snowflake.generate();
@@ -338,6 +342,10 @@ class API extends App {
 
 			this.logger.info(`Request to "${route.route}" [${request.method}] finished with status ${set.status}`);
 
+			if (this.args.includes("debug")) {
+				this.logger.stopTimer(`[Request] ${path}`);
+			}
+			
 			return requested;
 		});
 

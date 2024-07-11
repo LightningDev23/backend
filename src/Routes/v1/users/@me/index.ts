@@ -14,6 +14,8 @@ import Middleware from "@/Utils/Classes/Routing/Decorators/Middleware.ts";
 import type { CreateRoute } from "@/Utils/Classes/Routing/Route.ts";
 import Route from "@/Utils/Classes/Routing/Route.ts";
 import Token from "@/Utils/Classes/Token.ts";
+import { settingsTable } from "@/Utils/Cql/Tables/SettingsTable.ts";
+import { usersTable } from "@/Utils/Cql/Tables/UserTable.ts";
 
 export interface User {
 	allowedInvites?: number;
@@ -64,8 +66,10 @@ export default class FetchPatch extends Route {
 		query,
 		set,
 	}: CreateRoute<"/@me", any, [UserMiddlewareType], any, { include?: string }>) {
-		const fetchedUser = await this.App.cassandra.models.User.get({
+		const fetchedUser = await usersTable.get({
 			userId: Encryption.encrypt(user.id),
+		}, {
+			fields: ["flags", "publicFlags", "userId", "email", "username", "globalNickname", "tag", "avatar", "phoneNumber"]
 		});
 
 		if (!fetchedUser) {
@@ -75,17 +79,17 @@ export default class FetchPatch extends Route {
 			return "Internal Server Error :(";
 		}
 
-		const flags = new FlagFields(fetchedUser.flags, fetchedUser?.publicFlags ?? 0);
+		const flags = new FlagFields(fetchedUser.flags ?? "0", fetchedUser.publicFlags ?? "0");
 
 		const include = query.include?.split(",") ?? [];
 
 		const userObject: User = {
-			id: fetchedUser.userId,
-			email: fetchedUser.email, // TODO: If its oauth, check if they got the user.indentity.email scope
+			id: fetchedUser.userId!,
+			email: fetchedUser.email ?? "", // TODO: If its oauth, check if they got the user.indentity.email scope
 			emailVerified: flags.has("EmailVerified"),
-			username: fetchedUser.username,
+			username: fetchedUser.username ?? "",
 			globalNickname: fetchedUser.globalNickname,
-			tag: fetchedUser.tag,
+			tag: fetchedUser.tag ?? "",
 			avatar: fetchedUser.avatar,
 			publicFlags: String(flags.PublicFlags.cleaned),
 			flags: String(flags.PrivateFlags.cleaned),
@@ -95,7 +99,7 @@ export default class FetchPatch extends Route {
 		};
 
 		if (include.includes("bio")) {
-			const settings = await this.App.cassandra.models.Settings.get(
+			const settings = await settingsTable.get(
 				{
 					userId: Encryption.encrypt(user.id),
 				},

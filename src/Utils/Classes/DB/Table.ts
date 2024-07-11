@@ -6,11 +6,14 @@ import type {
 	AllTypes,
 	ConvertObjectToNormal,
 	ConvertToActualType,
+	ConvertTypesToTypes,
 	ExtractTypesFromCreateTable,
 	Options,
 	PublicGetReturnType,
 } from "./createTableTypes.ts";
 import { reservedNames, ExtractValueName, snakeifyString } from "./createTableTypes.ts";
+import Finder from "./Finder.ts";
+import { inspect } from "bun";
 
 const tableAndColumnNameRegex = /^[A-Z_a-z]\w*$/;
 
@@ -133,7 +136,45 @@ class Table<T> {
 				? migration.fields.every((field) => data[this.snakeifyString(field) as never] !== undefined)
 				: Object.keys(data as never).length === Object.keys(this.options.columns).length;
 
-			if (doWeHaveAllFields) {
+			// ? So for this, we got to check the "where" to make sure we got all the primary keys / partition keys else it will throw an error when we try to update.
+			// ? If we do NOT we set another boolean called "hasAllPrimary" if its false, we fetch those keys as well -> then we update the where object to include them
+			// ? so we can then migrate the data
+			
+			const primaryKeys = this.options.primaryKeys.flat()
+			
+			let hasAllPrimary = primaryKeys.every((key) => Object.keys(where).includes(key));
+			
+			const keysToFetch = [];
+			
+			if (!hasAllPrimary) {
+				// ? first check if data has the fields, if so just patch the where
+				for (const key of primaryKeys) {
+					if (!Object.keys(where).includes(key) && !Object.keys(data).includes(key)) {
+						keysToFetch.push(key);
+					}
+					
+					if (!Object.keys(where).includes(key)) {
+						where[key] = data[key];
+					}
+				}
+				
+				// ? one last check to see if we have all the primary keys
+				hasAllPrimary = primaryKeys.every((key) => Object.keys(where).includes(key));
+			}
+			
+			if (!doWeHaveAllFields) {
+				if (migration.fields === "*") {
+					keysToFetch.push(...Object.keys(this.options.columns));
+				} else {
+					for (const field of migration.fields) {
+						if (!Object.keys(data).includes(this.snakeifyString(field))) {
+							keysToFetch.push(field as string);
+						}
+					}
+				}
+			}
+			
+			if (doWeHaveAllFields && hasAllPrimary) {
 				const migratedData = migration.migrate(Client.getInstance(), structuredClone(data), version) as Data;
 
 				// ? If something changed, update the data in the database
@@ -202,7 +243,7 @@ class Table<T> {
 			// ? else rip we now got to fetch more fields :/
 
 			const opts = {
-				query: `SELECT ${migration.fields === "*" ? "*" : migration.fields.map((f) => this.snakeifyString(f as string)).join(", ")} FROM ${this.options.tableName} WHERE ${Object.keys(
+				query: `SELECT ${migration.fields === "*" ? "*" : keysToFetch.map((f) => this.snakeifyString(f as string)).join(", ")} FROM ${this.options.tableName} WHERE ${Object.keys(
 					where,
 				)
 					.map((key) => `${this.snakeifyString(key)} = ?`)
@@ -248,6 +289,15 @@ class Table<T> {
 				finishedData[this.convertBack(key)] = this.recursiveConvert(value);
 			}
 
+			// ? If we are missing where keys, add them
+			if (!hasAllPrimary) {
+				for (const key of primaryKeys) {
+					if (!Object.keys(where).includes(key)) {
+						where[key] = finishedData[key];
+					}
+				}
+			}
+			
 			const migratedData = migration.migrate(Client.getInstance(), structuredClone(finishedData), version) as Data;
 
 			if (Bun.deepEquals(migratedData, finishedData)) {
@@ -321,7 +371,7 @@ class Table<T> {
 
 	public async get<
 		AdditionalColumns extends Record<string, AllTypes>,
-		Fields extends MergeUnions<keyof this["options"]["columns"], keyof AdditionalColumns>[] | "*" = "*",
+		Fields extends (keyof this["options"]["columns"])[] | "*" = "*",
 	>(
 		filter: Partial<ExtractTypesFromCreateTable<this["options"]>>,
 		options?: {
@@ -378,10 +428,18 @@ class Table<T> {
 			)
 				.map((key) => `${this.snakeifyString(key)} = ?`)
 				.join(" AND ")}${options.allowFiltering ? " ALLOW FILTERING" : ""} LIMIT 1;`,
-			params: Object.values(filter),
+			params: Object.values(filter).map((v) => {
+				if (typeof v === "object") {
+					return this.recursiveConvert(v, true);
+				}
+
+				return v;
+			}),
 		};
 
-		const [data, error] = await safePromise(gotClient.connection.execute(opts.query, opts.params));
+		const [data, error] = await safePromise(gotClient.execute(opts.query, opts.params, {
+			prepare: true
+		}));
 
 		if (error) {
 			// ? Note: this goes for all errors, the reason we re-throw them, is due to the STUPID damn nature of cassandra-driver
@@ -458,15 +516,32 @@ class Table<T> {
 					delete finishedData[key as never];
 				}
 			}
-		}
+			
+			// ? now if there's any keys we are missing, add it as null (unless its a list in which that case we add it as [])
+			for (const key of options.fields) {
+				if (!Object.keys(finishedData).includes(key as never)) {
+					const foundMappedType = mappedTypes.find((type) => type.key === this.snakeifyString(key as string));
 
+					if (!foundMappedType) {
+						continue;
+					}
+
+					if (foundMappedType.value.toString().includes("list")) {
+						finishedData[key as never] = [];
+					} else {
+						finishedData[key as never] = null;
+					}
+				}
+			}
+		}
+		
 		return finishedData as PublicGetReturnType<
 			ConvertObjectToNormal<AdditionalColumns, this["options"]["types"]> & ExtractTypesFromCreateTable<this["options"]>,
 			Fields
 		>;
 	}
 
-	private recursiveConvert(obj: Record<string, unknown> | unknown) {
+	private recursiveConvert(obj: Record<string, unknown> | unknown, inverse?: boolean) {
 		if (Long.isLong(obj)) {
 			return BigInt(obj.toString());
 		}
@@ -474,26 +549,28 @@ class Table<T> {
 		if (typeof obj !== "object") {
 			return obj;
 		}
-		
+
 		if (Array.isArray(obj)) {
-			return obj.map((v) => this.recursiveConvert(v));
+			return obj.map((v) => this.recursiveConvert(v, inverse));
 		}
-		
+
 		if (obj === null || obj === undefined || obj instanceof Date) {
 			return obj;
 		}
+
+		const convert = inverse ? this.snakeifyString.bind(this) : this.convertBack.bind(this);
 
 		const newObj: Record<string, unknown> = {};
 
 		for (const [key, value] of Object.entries(obj)) {
 			if (Long.isLong(value)) {
-				newObj[this.convertBack(key)] = BigInt(value.toString());
+				newObj[convert(key)] = BigInt(value.toString());
 			} else if (typeof value === "object") {
-				newObj[this.convertBack(key)] = Array.isArray(value)
-					? value.map((v) => this.recursiveConvert(v))
-					: this.recursiveConvert(value);
+				newObj[convert(key)] = Array.isArray(value)
+					? value.map((v) => this.recursiveConvert(v, inverse))
+					: this.recursiveConvert(value, inverse);
 			} else {
-				newObj[this.convertBack(key)] = value;
+				newObj[convert(key)] = value;
 			}
 		}
 
@@ -502,18 +579,10 @@ class Table<T> {
 
 	public async update<
 		AdditionalColumns extends Record<string, AllTypes>,
-		Filter extends Partial<
-			ConvertObjectToNormal<AdditionalColumns, this["options"]["types"]> | ExtractTypesFromCreateTable<this["options"]>
-		>,
+		Filter extends Partial<ExtractTypesFromCreateTable<this["options"]>>,
 	>(
 		filter: Filter,
-		update: Omit<
-			Partial<
-				ConvertObjectToNormal<AdditionalColumns, this["options"]["types"]> &
-					ExtractTypesFromCreateTable<this["options"]>
-			>,
-			keyof Filter
-		>,
+		update: Omit<Partial<ExtractTypesFromCreateTable<this["options"]>>, keyof Filter>,
 		options?: {
 			/**
 			 * This is for historical purposes, if you want to update specific columns which are no longer in local but you are CERTAIN they are in remote
@@ -542,10 +611,12 @@ class Table<T> {
 				.join(", ")}${options?.version ? `, ${this.versionName} = ${options.version}` : ""} WHERE ${Object.keys(filter)
 				.map((key) => `${this.snakeifyString(key)} = ?`)
 				.join(" AND ")};`,
-			params: [...Object.values(update), ...Object.values(filter)],
+			params: [...Object.values(update).map((v) => this.recursiveConvert(v, true)), ...Object.values(filter)],
 		};
 
-		const [, error] = await safePromise(gotClient.connection.execute(opts.query, opts.params));
+		const [, error] = await safePromise(gotClient.execute(opts.query, opts.params, {
+			prepare: true
+		}));
 
 		if (error) {
 			throw new Error(`[${this.options.tableName}] There was an error updating the data: ${error.message}`);
@@ -590,7 +661,9 @@ class Table<T> {
 			params: Object.values(filter),
 		};
 
-		const [, error] = await safePromise(gotClient.connection.execute(opts.query, opts.params));
+		const [, error] = await safePromise(gotClient.execute(opts.query, opts.params, {
+			prepare: true
+		}));
 
 		if (error) {
 			throw new Error(`[${this.options.tableName}] There was an error deleting the data: ${error.message}`);
@@ -624,10 +697,12 @@ class Table<T> {
 				.join(", ")}, ${this.snakeifyString(this.versionName)}) VALUES (${Object.keys(data)
 				.map(() => "?")
 				.join(", ")}, ${options?.version ? options.version : this.version});`,
-			params: Object.values(data),
+			params: Object.values(data).map((v) => this.recursiveConvert(v, true)),
 		};
 
-		const [, error] = await safePromise(gotClient.connection.execute(opts.query, opts.params));
+		const [, error] = await safePromise(gotClient.execute(opts.query, opts.params, {
+			prepare: true
+		}));
 
 		if (error) {
 			throw new Error(`[${this.options.tableName}] There was an error creating the data: ${error.message}`);
@@ -637,10 +712,25 @@ class Table<T> {
 
 		return data;
 	}
+	
+	/**
+	 * Just for historical purposes, this is just a link to the create function
+	 */
+	public async insert<Data extends Partial<ExtractTypesFromCreateTable<this["options"]>>>(
+		data: Data,
+		options?: {
+			/**
+			 * If you want to set a specific version for the tbale, this is somewhat dangerous but if for whatever reason you want to sure
+			 */
+			version?: number;
+		},
+	): Promise<Data> {
+		return this.create(data, options);
+	}
 
 	public async find<
 		AdditionalColumns extends Record<string, AllTypes> = {},
-		Fields extends MergeUnions<keyof this["options"]["columns"], keyof AdditionalColumns>[] | "*" = "*",
+		Fields extends (keyof this["options"]["columns"])[] | "*" = "*",
 	>(
 		filter: Partial<
 			ConvertObjectToNormal<AdditionalColumns, this["options"]["types"]> & ExtractTypesFromCreateTable<this["options"]>
@@ -655,9 +745,166 @@ class Table<T> {
 			limit?: number;
 		},
 	): Promise<
-		PublicGetReturnType<ExtractTypesFromCreateTable<this["options"]>, Fields> &
-			PublicGetReturnType<ConvertObjectToNormal<AdditionalColumns, this["options"]["types"]>, Fields>[]
-	> {}
+	Finder<PublicGetReturnType<ExtractTypesFromCreateTable<this["options"]>, Fields> &
+	PublicGetReturnType<ConvertObjectToNormal<AdditionalColumns, this["options"]["types"]>, Fields>>
+	> {
+		if (
+			!options ||
+			!options.fields ||
+			options.fields === "*" ||
+			options.fields.length === 0 ||
+			options.fields.length === Object.keys(this.options.columns).length
+		) {
+			App.staticLogger.warn(
+				`[${this.options.tableName}] You are fetching all fields, this is not recommended, please specify the fields you want to fetch`,
+			);
+		}
+
+		const gotClient = Client.getInstance();
+
+		if (!gotClient.connected) {
+			throw new Error("The client is not connected yet.");
+		}
+
+		if (!options) {
+			// biome-ignore lint/style/noParameterAssign: we need to assign it
+			options = { fields: "*" as Fields };
+		}
+
+		if (Array.isArray(options.fields)) {
+			if (!options.fields.includes(this.versionName)) {
+				options.fields.push(this.versionName as string);
+			}
+
+			// ? we filter out any empty strings (due to version name) and any duplicates
+			options.fields = Array.from(new Set(options.fields)).filter((f) => f !== "") as Fields;
+		}
+
+		const opts: {
+			params: unknown[];
+			query: string;
+		} = {
+			query: `SELECT ${options.fields === "*" || !options.fields ? "*" : options.fields.map((f) => this.snakeifyString(f as string))?.join(", ")} FROM ${this.options.tableName} WHERE ${Object.keys(
+				filter,
+			)
+				.map((key) => `${this.snakeifyString(key)} = ?`)
+				.join(" AND ")}${options.allowFiltering ? " ALLOW FILTERING" : ""}${options.limit ? ` LIMIT ${options.limit}` : ""};`,
+			params: Object.values(filter).map((v) => {
+				if (typeof v === "object") {
+					return this.recursiveConvert(v, true);
+				}
+
+				return v;
+			}),
+		};
+		
+		const [data, error] = await safePromise(gotClient.execute(opts.query, opts.params, {
+			prepare: true
+		}));
+		
+		if (error) {
+			throw new Error(`[${this.options.tableName}] There was an error fetching the data: ${error.message}`);
+		}
+		
+		if (!data) {
+			return new Finder([]);
+		}
+		
+		const mappedTypes = Object.entries(this.options.columns).map(([key, value]) => {
+			return {
+				key: this.snakeifyString(key),
+				value: ExtractValueName(value as AllTypes),
+			};
+		});
+		
+		const finishedData: Partial<
+			PublicGetReturnType<
+				ConvertObjectToNormal<AdditionalColumns, this["options"]["types"]> &
+					ExtractTypesFromCreateTable<this["options"]>,
+				Fields
+			>
+		>[] = [];
+		
+		for (const row of data) {
+			let newObj: Record<string, unknown> = {};
+			
+			for (const [key, value] of Object.entries(row)) {
+				const foundMappedType = mappedTypes.find((type) => type.key === key);
+				
+				if (!foundMappedType) {
+					continue;
+				}
+				
+				// ? If the value is a array but the returned value is not an array (/null) we make it an array, this is due to cassandra returning null if the value is empty
+				if (foundMappedType.value.toString().includes("list") && !value) {
+					newObj[
+						this.convertBack(key) as keyof PublicGetReturnType<
+							ConvertObjectToNormal<AdditionalColumns, this["options"]["types"]> &
+								ExtractTypesFromCreateTable<this["options"]>,
+							Fields
+						>
+					] = [] as never;
+					
+					continue;
+				}
+				
+				newObj[
+					this.convertBack(key) as keyof PublicGetReturnType<
+						ConvertObjectToNormal<AdditionalColumns, this["options"]["types"]> &
+							ExtractTypesFromCreateTable<this["options"]>,
+						Fields
+					>
+				] = this.recursiveConvert(value);
+			}
+			
+			if (this.versionName !== "") {
+				const version = row[this.versionName];
+				
+				if (version === undefined) {
+					newObj = await this.migrateData(newObj, 0, filter)
+				}
+				
+				if (version !== undefined && version < this.version) {
+					newObj = await this.migrateData(newObj, version, filter);
+				}
+			}
+			
+			finishedData.push(newObj);
+		}
+		
+		// ? If there's any extra data remove it, we only want to return what the user asked for
+		if (options.fields !== "*" && options.fields) {
+			for (const obj of finishedData) {
+				for (const key of Object.keys(obj)) {
+					if (!options.fields.includes(key as never)) {
+						delete obj[key as never];
+					}
+				}
+				
+				// ? now if there's any keys we are missing, add it as null (unless its a list in which that case we add it as [])
+				for (const key of options.fields) {
+					if (!Object.keys(obj).includes(key as never)) {
+						const foundMappedType = mappedTypes.find((type) => type.key === this.snakeifyString(key as string));
+						
+						if (!foundMappedType) {
+							continue;
+						}
+						
+						if (foundMappedType.value.toString().includes("list")) {
+							obj[key as never] = [];
+						} else {
+							obj[key as never] = null;
+						}
+					}
+				}
+			}
+		}
+		
+		return new Finder(finishedData as PublicGetReturnType<
+			ConvertObjectToNormal<AdditionalColumns, this["options"]["types"]> & ExtractTypesFromCreateTable<this["options"]>,
+			Fields
+		>);
+	}
 
 	/**
 	 * Turn's camelCase / PascalCase strings into snake_case
@@ -672,14 +919,14 @@ class Table<T> {
 	private convertBack(str: string) {
 		const initalKey = str.endsWith("_") ? (reservedNames.includes(str.slice(0, -1)) ? str.slice(0, -1) : str) : str;
 
-		if (this.options.mode === "PascalCase") {
+		if (this.options?.mode === "PascalCase") {
 			return initalKey
 				.split("_")
 				.map((part) => part[0]!.toUpperCase() + part.slice(1))
 				.join("");
 		}
 
-		if (this.options.mode === "camelCase") {
+		if (this.options?.mode === "camelCase") {
 			return initalKey
 				.split("_")
 				.map((part, index) => (index === 0 ? part : part[0]!.toUpperCase() + part.slice(1)))

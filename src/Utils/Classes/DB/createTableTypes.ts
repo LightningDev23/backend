@@ -1,4 +1,5 @@
 import type Client from "./Client.ts";
+import type Table from "./Table.ts";
 
 type IsUnion<T, B = T> = T extends B ? ([B] extends [T] ? false : true) : never;
 type Check<T> = [T] extends [string] ? (string extends T ? false : IsUnion<T> extends true ? true : false) : false;
@@ -47,14 +48,16 @@ export type TupleFrozenlessTypes = [FrozenlessTypes]; // This replaces the recur
 export type AllTypes = ColumnTypesRaw | ColumnTypesStrings | FrozenTypes | ListableTypes | TupleAllTypes;
 export type TupleAllTypes = [AllTypes]; // Separates the tuple types to avoid direct recursion.
 
-export type ListAndFreezeType<T extends string> =
-	| `frozen<${T}>`
-	| `list<${T}>`
-	| `list<frozen<${T}>>`
-	| [`frozen<${T}>`]
-	| [`list<${T}>`]
-	| [`list<frozen<${T}>>`]
-	| [T];
+export type ListAndFreezeType<T> = T extends string
+	?
+			| `frozen<${T}>`
+			| `list<${T}>`
+			| `list<frozen<${T}>>`
+			| [`frozen<${T}>`]
+			| [`list<${T}>`]
+			| [`list<frozen<${T}>>`]
+			| [T]
+	: never;
 
 export type ConvertType<T extends FrozenlessTypes> = T extends ColumnTypesRaw
 	? `frozen<${Lowercase<ExtractNameBasedOffConstructor<T>>}>`
@@ -71,7 +74,6 @@ export type ExtractType<T extends string> = T extends `list<${infer U}>` ? U : n
 
 export type ConvertToActualType<
 	Type,
-	// @ts-expect-error -- This is fine
 	Types extends Record<string, Record<string, AllTypes | ListAndFreezeType<keyof Types>>>,
 > = Type extends `list<${infer U}>`
 	? ConvertToActualType<U, Types>[]
@@ -99,7 +101,6 @@ export type ConvertBasicTypes<Type> = Type extends "BigInt" | "bigint"
 
 export type ConvertObjectToNormal<
 	T,
-	// @ts-expect-error -- This is fine
 	Types extends Record<string, Record<string, AllTypes | ListAndFreezeType<keyof Types>>>,
 > = {
 	[K in keyof T]: ConvertToActualType<T[K], Types>;
@@ -157,9 +158,7 @@ interface CassandraTableOptions {
 }
 
 export interface Options<
-	// @ts-expect-error -- This is fine
 	Types extends Record<string, Record<string, AllTypes | ListAndFreezeType<keyof Types>>>,
-	// @ts-expect-error -- This is fine
 	Columns extends Record<string, AllTypes | ListAndFreezeType<keyof Types>>,
 	PrimaryKeys extends keyof Columns | [keyof Columns, keyof Columns],
 	IndexKeys extends keyof Columns,
@@ -323,11 +322,12 @@ export interface Options<
 	with?: CassandraTableOptions;
 }
 
-export type ExtractTypesFromCreateTable<T> = T extends Options<infer Types, infer U, infer _P, infer _I>
+export type ExtractTypesFromCreateTable<T> = T extends Table<Options<infer Types, infer U, infer _P, infer _I>>
 	? ConvertObjectToNormal<U, Types>
-	: never;
+	: T extends Options<infer Types, infer U, infer _P, infer _I>
+		? ConvertObjectToNormal<U, Types>
+		: never;
 
-// @ts-expect-error -- This is fine
 export type ConvertTypesToTypes<T extends Record<string, AllTypes | ListAndFreezeType<keyof T>>> = {
 	// @ts-expect-error -- This is fine
 	[K in keyof T]: ConvertToActualType<T[K], T>;

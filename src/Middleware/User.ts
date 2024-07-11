@@ -115,8 +115,7 @@ const userMiddleware = (options: UserMiddleware) => {
 
 			const userSettings = await settingsTable.get(
 				{
-					userId: Encryption.encrypt(decodedToken.Snowflake),
-					tokens: []
+					userId: Encryption.encrypt(decodedToken.Snowflake)
 				},
 				{
 					fields: [

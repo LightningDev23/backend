@@ -416,6 +416,10 @@ class Client extends EventEmitter {
 
 		rl.close();
 	}
+	
+	public async execute(query: string, params: unknown[] = [], opts: cassandra.QueryOptions = {}) {
+		return this.connection.execute(query, params, opts);
+	}
 }
 
 export default Client;

@@ -21,6 +21,11 @@ import type { Channel, Guild, GuildMember, PermissionOverride } from "@/Utils/Cq
 import { fixChannelPositionsWithoutNewChannel } from "@/Utils/Versioning/v1/FixChannelPositions.ts";
 import permissionOverrideType from "@/Utils/Versioning/v1/permissionOverrideType.ts";
 import FetchCreateMessages from "../channels/[channelId]/messages/index.ts";
+import { guildsTable, type GuildTable } from "@/Utils/Cql/Tables/GuildTable.ts";
+import { usersTable } from "@/Utils/Cql/Tables/UserTable.ts";
+import { rolesTable, type RoleTable } from "@/Utils/Cql/Tables/RoleTable.ts";
+import type { ChannelTable } from "@/Utils/Cql/Tables/ChannelTable.ts";
+import type { PermissionsOverridesTable } from "@/Utils/Cql/Tables/PermissionsOverideTable.ts";
 
 const postGuild = {
 	name: string().max(Constants.settings.Max.GuildNameLength).min(2),
@@ -123,11 +128,11 @@ export interface finishedGuild {
 
 export interface rawGuild {
 	channels: {
-		channel: Channel;
-		overrides: PermissionOverride[];
+		channel: ChannelTable;
+		overrides: PermissionsOverridesTable[];
 	}[];
-	guild: Guild;
-	roles: Roles[];
+	guild: GuildTable;
+	roles: RoleTable[];
 }
 
 export default class FetchGuilds extends Route {
@@ -152,9 +157,14 @@ export default class FetchGuilds extends Route {
 			: [];
 
 		for (const guild of user.guilds) {
-			const fetchedGuild = await this.App.cassandra.models.Guild.get({
-				guildId: Encryption.encrypt(guild),
-			});
+			const fetchedGuild = await guildsTable.get(
+				{
+					guildId: Encryption.encrypt(guild),
+				},
+				{
+					fields: ["coOwners", "description", "features", "flags", "icon", "maxMembers", "name", "ownerId", "guildId"],
+				},
+			);
 
 			if (!fetchedGuild) {
 				this.App.logger.warn(`Failed to fetch guild ${guild} for user ${user.id}`);
@@ -171,16 +181,22 @@ export default class FetchGuilds extends Route {
 				: null;
 
 			const rawRoles = include.includes("roles")
-				? await this.App.cassandra.models.Role.find({
+				? await rolesTable.find({
 						guildId: Encryption.encrypt(guild),
 					})
 				: null;
 
 			const raw: rawGuild = {
-				guild: fetchedGuild,
-				roles: rawRoles ? rawRoles.toArray() : [],
+				guild: fetchedGuild as GuildTable,
+				roles: rawRoles ? (rawRoles.toArray() as RoleTable[]) : [],
 				channels: rawChannels
-					? fixChannelPositionsWithoutNewChannel(rawChannels.toArray()).map((channel) => ({ channel, overrides: [] }))
+					? (fixChannelPositionsWithoutNewChannel(rawChannels.toArray()).map((channel) => ({
+							channel,
+							overrides: [],
+						})) as {
+							channel: ChannelTable;
+							overrides: PermissionsOverridesTable[];
+						}[])
 					: [],
 			};
 
@@ -241,9 +257,14 @@ export default class FetchGuilds extends Route {
 			};
 
 			if (include.includes("owners")) {
-				const fetchedUser = await this.App.cassandra.models.User.get({
-					userId: rawGuild.guild.ownerId,
-				});
+				const fetchedUser = await usersTable.get(
+					{
+						userId: rawGuild.guild.ownerId,
+					},
+					{
+						fields: ["avatar", "flags", "publicFlags", "globalNickname", "tag", "username", "userId"],
+					},
+				);
 
 				if (!fetchedUser) {
 					guild.owner = null;
@@ -257,12 +278,12 @@ export default class FetchGuilds extends Route {
 
 				guild.owner = {
 					avatar: fetchedUser.avatar ? Encryption.decrypt(fetchedUser.avatar) : null,
-					flags: fetchedUser.flags,
+					flags: fetchedUser.flags ?? "0",
 					globalNickname: fetchedUser.globalNickname ? Encryption.decrypt(fetchedUser.globalNickname) : null,
-					id: Encryption.decrypt(fetchedUser.userId),
-					publicFlags: fetchedUser.publicFlags,
-					tag: fetchedUser.tag,
-					username: Encryption.decrypt(fetchedUser.username),
+					id: Encryption.decrypt(fetchedUser.userId!),
+					publicFlags: fetchedUser.publicFlags ?? "0",
+					tag: fetchedUser.tag ?? "0000",
+					username: Encryption.decrypt(fetchedUser.username ?? ""),
 				};
 			} else {
 				guild.ownerId = Encryption.decrypt(rawGuild.guild.ownerId);

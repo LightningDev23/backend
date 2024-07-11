@@ -14,6 +14,8 @@ import Middleware from "@/Utils/Classes/Routing/Decorators/Middleware.ts";
 import type { CreateRoute } from "@/Utils/Classes/Routing/Route.ts";
 import Route from "@/Utils/Classes/Routing/Route.ts";
 import Token from "@/Utils/Classes/Token.ts";
+import { type SettingsTable, settingsTable } from "@/Utils/Cql/Tables/SettingsTable.ts";
+import { usersTable } from "@/Utils/Cql/Tables/UserTable.ts";
 
 const postLoginBody = {
 	email: string(),
@@ -38,7 +40,7 @@ export default class Login extends Route {
 	@Middleware(bodyValidator(postLoginBody))
 	public async postLogin({ body, set, ip }: CreateRoute<"/login", Infer<typeof postLoginBody>>) {
 		const fetchedUser = await this.fetchUser(body.email);
-
+		
 		if (!fetchedUser) {
 			const error = errorGen.InvalidCredentials();
 
@@ -86,7 +88,7 @@ export default class Login extends Route {
 			return error.toJSON();
 		}
 
-		const flags = new FlagFields(fetchedUser.flags, fetchedUser.publicFlags);
+		const flags = new FlagFields(fetchedUser.flags ?? "0", fetchedUser.publicFlags ?? "0");
 
 		if (flags.has("AccountDeleted")) {
 			const error = errorGen.AccountNotAvailable();
@@ -134,11 +136,11 @@ export default class Login extends Route {
 			return error.toJSON();
 		}
 
-		const newToken = Token.generateToken(fetchedUser.userId);
+		const newToken = Token.generateToken(fetchedUser.userId!);
 
-		let tokens = await this.App.cassandra.models.Settings.get(
+		let tokens = await settingsTable.get(
 			{
-				userId: Encryption.encrypt(fetchedUser.userId),
+				userId: Encryption.encrypt(fetchedUser.userId!),
 			},
 			{
 				fields: ["userId", "tokens"],
@@ -159,12 +161,12 @@ export default class Login extends Route {
 				customStatus: null,
 				theme: "dark",
 				tokens: [],
-				userId: Encryption.encrypt(fetchedUser.userId),
+				userId: Encryption.encrypt(fetchedUser.userId!),
 				guildOrder: [],
 				allowedInvites: 0, // ? You get 0 invites on creation
 				emojiPack: "twemoji",
 				navLocation: "bottom",
-			};
+			} as unknown as SettingsTable;
 		}
 
 		const sessionId = this.App.snowflake.generate();
@@ -183,9 +185,13 @@ export default class Login extends Route {
 		}
 
 		if (wasNull) {
-			await this.App.cassandra.models.Settings.insert(tokens);
+			await settingsTable.insert(tokens as SettingsTable);
 		} else {
-			await this.App.cassandra.models.Settings.update(tokens);
+			await settingsTable.update({
+				userId: tokens.userId!,
+			}, {
+				tokens: tokens.tokens as SettingsTable["tokens"],
+			});
 		}
 
 		this.App.rabbitMQForwarder("sessions.create", {
@@ -199,7 +205,7 @@ export default class Login extends Route {
 	}
 
 	private async fetchUser(email: string) {
-		const fetched = await this.App.cassandra.models.User.get(
+		const fetched = await usersTable.get(
 			{
 				email: Encryption.encrypt(email),
 			},
@@ -212,9 +218,6 @@ export default class Login extends Route {
 			return null;
 		}
 
-		return Encryption.completeDecryption({
-			...fetched,
-			flags: fetched.flags ? String(fetched.flags) : "0",
-		});
+		return Encryption.completeDecryption(fetched);
 	}
 }

@@ -1,3 +1,7 @@
+import App from "./Utils/Classes/App.ts";
+
+new App("MIG");
+
 import ConfigManager from "./Utils/Classes/ConfigManager.ts";
 import * as _ from "@/Utils/Cql/Tables/Tables.ts";
 import Client from "./Utils/Classes/DB/Client.ts";
@@ -18,3 +22,5 @@ await Client.getInstance().connect({
         networkTopologyStrategy: config.scyllaDB.networkTopologyStrategy
     }
 })
+
+console.log("Done")

@@ -177,6 +177,13 @@ class Table<T> {
 			if (doWeHaveAllFields && hasAllPrimary) {
 				const migratedData = migration.migrate(Client.getInstance(), structuredClone(data), version) as Data;
 
+				// ? removes any non primary keys from the where object
+				for (const key of Object.keys(where)) {
+					if (!primaryKeys.includes(key)) {
+						delete where[key];
+					}
+				}
+				
 				// ? If something changed, update the data in the database
 				if (Bun.deepEquals(migratedData, data)) {
 					// ? nothing changed, but we still want to update the version
@@ -270,7 +277,9 @@ class Table<T> {
 				};
 			});
 
-			const finishedData: Record<string, unknown> = {};
+			const finishedData: Record<string, unknown> = {
+				...data
+			};
 
 			for (const [key, value] of Object.entries(first)) {
 				const foundMappedType = mappedTypes.find((type) => type.key === key);
@@ -288,12 +297,21 @@ class Table<T> {
 
 				finishedData[this.convertBack(key)] = this.recursiveConvert(value);
 			}
-
+			
 			// ? If we are missing where keys, add them
 			if (!hasAllPrimary) {
 				for (const key of primaryKeys) {
 					if (!Object.keys(where).includes(key)) {
 						where[key] = finishedData[key];
+					}
+				}
+			}
+			
+			// ? now remove any non needed keys from finishedData (i.e any key that is not in migration.fields)
+			if (migration.fields !== "*") {
+				for (const key of Object.keys(finishedData)) {
+					if (!migration.fields.includes(this.snakeifyString(key))) {
+						delete finishedData[key];
 					}
 				}
 			}
@@ -467,7 +485,7 @@ class Table<T> {
 				value: ExtractValueName(value as AllTypes),
 			};
 		});
-
+		
 		for (const [key, value] of Object.entries(first)) {
 			const foundMappedType = mappedTypes.find((type) => type.key === key);
 
@@ -500,13 +518,14 @@ class Table<T> {
 		if (this.versionName !== "") {
 			const version = first[this.versionName];
 
-			if (!version) {
+			if (version === undefined || version === null) {
 				finishedData = await this.migrateData(finishedData, 0, filter);
 			}
 
-			if (version && version < this.version) {
+			if (typeof version === "number" && version < this.version) {
 				finishedData = await this.migrateData(finishedData, version, filter);
 			}
+			
 		}
 
 		// ? If there's any extra data remove it, we only want to return what the user asked for
@@ -860,11 +879,11 @@ class Table<T> {
 			if (this.versionName !== "") {
 				const version = row[this.versionName];
 				
-				if (version === undefined) {
+				if (version === undefined || version === null) {
 					newObj = await this.migrateData(newObj, 0, filter)
 				}
 				
-				if (version !== undefined && version < this.version) {
+				if (typeof version === "number" && version < this.version) {
 					newObj = await this.migrateData(newObj, version, filter);
 				}
 			}
@@ -1008,7 +1027,7 @@ class Table<T> {
 		return this.options.indexes.map((index) => {
 			const name = Array.isArray(index) ? index[0] : null;
 
-			return `CREATE INDEX IF NOT EXISTS ${name ? name : `${this.options.tableName}_inx_${index as unknown as string}`} ON ${this.options.tableName} (${Array.isArray(index) ? index[1] : index});`;
+			return `CREATE INDEX IF NOT EXISTS ${name ? name : `${this.snakeifyString(this.options.tableName)}_inx_${index as unknown as string}`} ON ${this.snakeifyString(this.options.tableName)} (${Array.isArray(index) ? this.snakeifyString(index[1]) : this.snakeifyString(index)});`;
 		});
 	}
 
@@ -1021,7 +1040,7 @@ class Table<T> {
 	}
 
 	public get version() {
-		return this.options === undefined ? 0 : Array.isArray(this.options.version) ? this.options.version[1] : 0;
+		return this.options.version === undefined ? 0 : Array.isArray(this.options.version) ? this.options.version[1] : this.options.version
 	}
 
 	private handleWithOptions(key: string, value: unknown) {

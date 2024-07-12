@@ -215,7 +215,7 @@ class Client extends EventEmitter {
 		const remotePrimaryKeys = columnNames.filter(
 			(column) => column.kind === "partition_key" || column.kind === "clustering",
 		);
-
+		
 		const fixedPrimaryKeys: [string[] | string, ...string[]] = remotePrimaryKeys
 			.reduce<[{ name: string; pos: number }[], ...{ name: string; pos: number }[]]>(
 				(acc, key) => {
@@ -413,6 +413,35 @@ class Client extends EventEmitter {
 				}
 			}
 		}
+		
+		// ? check if there's any missing columns, if there is, ask the user if they want to add them
+		const missingColumns = Object.keys(table.options.columns).filter(
+			(column) => !columnNames.some((col) => col.name === table.snakeifyString(column)),
+		);
+		
+		for (const column of missingColumns) {
+			const answer = await rl.question(
+				`[${table.options.tableName}] The column ${column} is not in the remote table, would you like to add it? [y/n] `,
+			);
+
+			if (possibleYes.includes(answer)) {
+				const found = table.columns.find((col) => col.startsWith(table.snakeifyString(column)))
+
+				const [, error] = await safePromise(
+					this.connection.execute(
+						`ALTER TABLE ${table.snakeifyString(table.options.tableName)} ADD ${found}`,
+					),
+				);
+
+				if (error) {
+					throw new Error(`Failed to add column ${found}: ${error.message}`);
+				}
+
+				App.staticLogger.info(`Added column ${found}`);
+			}
+		}
+		
+		
 
 		rl.close();
 	}

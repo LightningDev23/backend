@@ -2,9 +2,10 @@ import App from "./Utils/Classes/App.ts";
 
 new App("MIG");
 
+import Client from "./Utils/Classes/DB/Client.ts";
+
 import ConfigManager from "./Utils/Classes/ConfigManager.ts";
 import * as tables from "@/Utils/Cql/Tables/Tables.ts";
-import Client from "./Utils/Classes/DB/Client.ts";
 
 const cfg = new ConfigManager()
 
@@ -25,6 +26,4 @@ await Client.getInstance().connect({
 
 console.log("Done", tables)
 
-setTimeout(() => {
-    process.exit()
-}, 1000 * 60 * 1) // 1 minute
+process.exit()

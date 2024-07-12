@@ -10,6 +10,8 @@ import Method from "@/Utils/Classes/Routing/Decorators/Method.ts";
 import Middleware from "@/Utils/Classes/Routing/Decorators/Middleware.ts";
 import type { CreateRoute } from "@/Utils/Classes/Routing/Route.ts";
 import Route from "@/Utils/Classes/Routing/Route.ts";
+import { settingsTable } from "@/Utils/Cql/Tables/SettingsTable.ts";
+import { usersTable } from "@/Utils/Cql/Tables/UserTable.ts";
 
 interface User {
 	avatar: string | null;
@@ -37,8 +39,10 @@ export default class Fetch extends Route {
 		}),
 	)
 	public async getProfile({ params, query, set }: CreateRoute<"/users/:userId", any, [UserMiddlewareType]>) {
-		const fetchedUser = await this.App.cassandra.models.User.get({
+		const fetchedUser = await usersTable.get({
 			userId: Encryption.encrypt(params.userId),
+		}, {
+			fields: ["flags", "publicFlags", "userId", "username", "globalNickname", "tag", "avatar"]
 		});
 
 		if (!fetchedUser) {
@@ -56,22 +60,22 @@ export default class Fetch extends Route {
 			return userNotFound.toJSON();
 		}
 
-		const flags = new FlagFields(fetchedUser.flags, fetchedUser?.publicFlags ?? 0);
+		const flags = new FlagFields(fetchedUser.flags ?? "0", fetchedUser?.publicFlags ?? "0");
 
 		const include = query.include?.split(",") ?? [];
 
 		const userObject: User = {
-			id: fetchedUser.userId,
-			username: fetchedUser.username,
+			id: fetchedUser.userId ?? params.userId,
+			username: fetchedUser.username ?? "",
 			globalNickname: fetchedUser.globalNickname,
-			tag: fetchedUser.tag,
+			tag: fetchedUser.tag ?? "0000",
 			avatar: fetchedUser.avatar,
 			publicFlags: String(flags.PublicFlags.cleaned),
 			flags: String(flags.PrivateFlags.cleaned),
 		};
 
 		if (include.includes("bio")) {
-			const bio = await this.App.cassandra.models.Settings.get(
+			const bio = await settingsTable.get(
 				{
 					userId: Encryption.encrypt(params.userId),
 				},

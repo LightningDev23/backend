@@ -946,7 +946,7 @@ class Table<T> {
 			`CREATE TABLE${this.options.ifNotExists ? " IF NOT EXISTS" : ""} ${this.options.keyspace ? `${this.options.keyspace}.` : ""}${this.snakeifyString(this.options.tableName)} (`,
 			this.columns.map((k) => `\t ${k}`).join(",\n"),
 			this.options.version === undefined ? "," : `,\t${this.snakeifyString(this.versionName)} int,`,
-			`\tPRIMARY KEY (${this.options.primaryKeys.map((key) => (Array.isArray(key) ? `(${key.map((k) => this.snakeifyString(k)).join(", ")})` : this.snakeifyString(key))).join(", ")})${Array.isArray(this.options.primaryKeys[0]) ? ")" : ""}`,
+			`\tPRIMARY KEY (${this.options.primaryKeys.map((key) => (Array.isArray(key) ? `(${key.map((k) => this.snakeifyString(k)).join(", ")})` : this.snakeifyString(key))).join(", ")})`,
 			")",
 			this.withOptions.length > 0 ? `WITH ${this.withOptions.join(" AND ")}` : "",
 			";",

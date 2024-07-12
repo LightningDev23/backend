@@ -24,3 +24,7 @@ await Client.getInstance().connect({
 })
 
 console.log("Done", tables)
+
+setTimeout(() => {
+    process.exit()
+}, 1000 * 60 * 1) // 1 minute

@@ -478,6 +478,10 @@ class Table<T> {
 		> = {};
 
 		const first = data?.first();
+		
+		if (!first) {
+			return null;
+		}
 
 		const mappedTypes = Object.entries(this.options.columns).map(([key, value]) => {
 			return {

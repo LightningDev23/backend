@@ -1,6 +1,6 @@
-// channels are <#id>
-// roles are <@&id>
-// users are <@!?id>
+// ? channels are <#id>
+// ? roles are <@&id>
+// ? users are <@!?id>
 
 export const fetchMentions = (
 	content: string,
@@ -17,6 +17,7 @@ export const fetchMentions = (
 
 	let match: RegExpExecArray | null;
 
+	// biome-ignore lint/suspicious/noAssignInExpressions: This is safe
 	while ((match = regex.exec(content)) !== null) {
 		if (match[1]) {
 			channels.push(match[1]);

@@ -47,7 +47,6 @@ export default class Logout extends Route {
 
 		set.status = 204;
 
-		// eslint-disable-next-line sonarjs/no-redundant-jump, no-useless-return
 		return;
 	}
 }

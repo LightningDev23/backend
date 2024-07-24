@@ -1,6 +1,8 @@
 export const emptyStringToNull = <T = any>(obj: T): T => {
 	if (typeof obj !== "object" || obj === null) {
-		if (typeof obj === "string" && obj === "") return null as T;
+		if (typeof obj === "string" && obj === "") {
+			return null as T;
+		}
 
 		return obj;
 	}

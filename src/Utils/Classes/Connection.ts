@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import fs from "node:fs/promises";
 import path from "node:path";
+import process from "node:process";
 import cassandra, { mapping, type ClientOptions } from "@kastelapp/cassandra-driver";
 import type {
 	Ban,
@@ -126,13 +127,25 @@ class Connection extends EventEmitter {
 				Role: this.generateMappingOptions("roles"),
 				Settings: this.generateMappingOptions("settings"),
 				User: this.generateMappingOptions("users"),
-				VerificationLink: this.generateMappingOptions("verifcationlink"),
+				VerificationLink: this.generateMappingOptions("verifcationlinks"),
 				Webhook: this.generateMappingOptions("webhooks"),
 				PlatformInvite: this.generateMappingOptions("platform_invite"),
 			},
 		} as const;
 
 		this.mapper = new mapping.Mapper(this.client, this.mappingOptions);
+
+		const fors = this.mapper.forModel<User>("User");
+
+		if (process.env.NODE_ENV === "development") {
+			const oldUpdate = fors.update;
+
+			fors.update = async (doc, docInfo, executionOptions) => {
+				console.log("UPDATING", doc, docInfo, executionOptions);
+
+				return oldUpdate.bind(fors)(doc, docInfo, executionOptions);
+			};
+		}
 
 		this.models = {
 			Ban: this.mapper.forModel<Ban>("Ban"),
@@ -150,7 +163,7 @@ class Connection extends EventEmitter {
 			PermissionOverride: this.mapper.forModel<PermissionOverride>("PermissionOverride"),
 			Role: this.mapper.forModel<Role>("Role"),
 			Settings: this.mapper.forModel<Settings>("Settings"),
-			User: this.mapper.forModel<User>("User"),
+			User: fors,
 			VerificationLink: this.mapper.forModel<VerificationLink>("VerificationLink"),
 			Webhook: this.mapper.forModel<Webhook>("Webhook"),
 			PlatformInvite: this.mapper.forModel<PlatformInvite>("PlatformInvite"),
@@ -210,7 +223,9 @@ class Connection extends EventEmitter {
 	}
 
 	public async execute(query: string, params?: any[]) {
-		if (!this.connected) throw new Error("Not connected to cassandra");
+		if (!this.connected) {
+			throw new Error("Not connected to cassandra");
+		}
 
 		try {
 			return await this.client.execute(query, params, { prepare: true });
@@ -222,7 +237,9 @@ class Connection extends EventEmitter {
 	}
 
 	public async executeWithKeyspace(query: string, params?: any[]) {
-		if (!this.connected) throw new Error("Not connected to cassandra");
+		if (!this.connected) {
+			throw new Error("Not connected to cassandra");
+		}
 
 		try {
 			return await this.client.execute(query, params, { prepare: true, keyspace: this.keySpace });
@@ -250,8 +267,10 @@ class Connection extends EventEmitter {
 	}
 
 	public async createTables() {
-		const files = await this.walkDirectory(this.TableDirectory);
+		const files = (await this.walkDirectory(this.TableDirectory)).filter((file) => file.endsWith(".cql"));
 
+		return true;
+		
 		for (const file of files) {
 			const query = await fs.readFile(file, "utf8");
 
@@ -297,7 +316,9 @@ class Connection extends EventEmitter {
 			for (const query of newSplitQuery) {
 				const joined = query.join("\n");
 
-				if (joined.length < 1) continue;
+				if (joined.length < 1) {
+					continue;
+				}
 
 				try {
 					await this.execute(query.join("\n"));

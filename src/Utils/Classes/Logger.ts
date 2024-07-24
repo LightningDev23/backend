@@ -1,5 +1,3 @@
-/* eslint-disable promise/prefer-await-to-callbacks */
-/* eslint-disable promise/prefer-await-to-then */
 import { createWriteStream, createReadStream } from "node:fs";
 import { writeFile, mkdir, exists, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -60,7 +58,7 @@ class Logger {
 			LogDirectory?: string;
 			console?: boolean;
 		} = {},
-		public who: string = "",
+		public who = "",
 	) {
 		this.logDirectory = options.LogDirectory ?? join(import.meta.dirname, "..", "..", "..", "logs");
 
@@ -83,7 +81,9 @@ class Logger {
 		this.timers = new Map();
 
 		setInterval(() => {
-			if (this.compressing) return; // if we are compressing logs then we don't want to do anything.
+			if (this.compressing) {
+				return; // if we are compressing logs then we don't want to do anything.
+			}
 
 			const now = new Date();
 
@@ -122,9 +122,13 @@ class Logger {
 	}
 
 	private async init(): Promise<void> {
-		if (!isMainThread) return;
+		if (!isMainThread) {
+			return;
+		}
 
-		if (!(await exists(this.logDirectory))) await mkdir(this.logDirectory);
+		if (!(await exists(this.logDirectory))) {
+			await mkdir(this.logDirectory);
+		}
 
 		const compressed = await this.compress();
 
@@ -172,7 +176,9 @@ class Logger {
 	}
 
 	private async compress(): Promise<boolean> {
-		if (!isMainThread) return false;
+		if (!isMainThread) {
+			return false;
+		}
 
 		this.compressing = true;
 
@@ -231,17 +237,23 @@ class Logger {
 	}
 
 	private supersecretdebug(...msg: string[]) {
-		if (args.valid.includes("super-debug")) console.log(`[DEBUG] [LOGGER]: ${msg.join(" ")}`);
+		if (args.valid.includes("super-debug")) {
+			console.log(`[DEBUG] [LOGGER]: ${msg.join(" ")}`);
+		}
 	}
 
 	private next(): boolean {
-		if (this.writingQueue.length === 0) return true;
+		if (this.writingQueue.length === 0) {
+			return true;
+		}
 
 		this.supersecretdebug("Writing message");
 
 		const message = this.writingQueue.shift();
 
-		if (!message) return true;
+		if (!message) {
+			return true;
+		}
 
 		if (!isMainThread) {
 			postMessage({
@@ -396,7 +408,9 @@ class Logger {
 	}
 
 	public debug(...message: any[]) {
-		if (!args.valid.includes("debug")) return this;
+		if (!args.valid.includes("debug")) {
+			return this;
+		}
 
 		this.addLog({
 			type: "debug",
@@ -410,7 +424,9 @@ class Logger {
 	}
 
 	public importantDebug(...message: any[]) {
-		if (!args.valid.includes("debug")) return this;
+		if (!args.valid.includes("debug")) {
+			return this;
+		}
 
 		this.addLog({
 			type: "importantDebug",
@@ -451,7 +467,9 @@ class Logger {
 	}
 
 	public verbose(...message: any[]) {
-		if (args.valid.includes("no-verbose")) return this;
+		if (args.valid.includes("no-verbose")) {
+			return this;
+		}
 
 		this.addLog({
 			type: "verbose",
@@ -465,7 +483,7 @@ class Logger {
 		return this;
 	}
 
-	public startTimer(name: string, debug: boolean = false) {
+	public startTimer(name: string, debug = false) {
 		this.timers.set(name, {
 			start: new Date(),
 			debug,
@@ -477,13 +495,17 @@ class Logger {
 	public stopTimer(name: string) {
 		const timer = this.timers.get(name);
 
-		if (!timer) throw new Error(`Timer ${name} not found`);
+		if (!timer) {
+			throw new Error(`Timer ${name} not found`);
+		}
 
 		const end = new Date();
 
 		const diff = end.getTime() - timer.start.getTime();
 
-		if (timer.debug && !args.valid.includes("debug")) return this;
+		if (timer.debug && !args.valid.includes("debug")) {
+			return this;
+		}
 
 		this.addLog({
 			type: "timer",

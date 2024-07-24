@@ -5,7 +5,8 @@ export type Features =
 	| "DisableGuildCreation"
 	| "DisableLogin"
 	| "DisablePasswordReset"
-	| "DisableRegistration";
+	| "DisableRegistration"
+	| "MulitSocketMode"; // if there's multiple API's and WS's
 
 // omit the features thats already in the array
 
@@ -76,7 +77,7 @@ interface User {
 	port: number;
 	secure: boolean;
 	shortCode: ShortCode;
-	user: string;
+	username: string;
 }
 
 export interface MailServer {

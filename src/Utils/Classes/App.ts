@@ -1,4 +1,3 @@
-/* eslint-disable id-length */
 import process from "node:process";
 import { CacheManager } from "@kastelll/util";
 import * as Sentry from "@sentry/bun";
@@ -15,13 +14,21 @@ import Question from "./Question.ts";
 import type { GetChannelTypes, channels } from "./Shared/RabbitMQ.ts";
 import Snowflake from "./Snowflake.ts";
 import SystemInfo from "./SystemInfo.ts";
+import Client from "./DB/Client.ts";
 
 type GitType = "Added" | "Copied" | "Deleted" | "Ignored" | "Modified" | "None" | "Renamed" | "Unmerged" | "Untracked";
 
 class App {
-	public ready: boolean = false;
+	public ready = false;
 
-	public static snowflake: Snowflake = new Snowflake(Constants.snowflake.Epoch, Constants.snowflake.WorkerId, Constants.snowflake.ProcessId, Constants.snowflake.TimeShift, Constants.snowflake.WorkerIdBytes, Constants.snowflake.ProcessIdBytes);
+	public static snowflake: Snowflake = new Snowflake(
+		Constants.snowflake.Epoch,
+		Constants.snowflake.WorkerId,
+		Constants.snowflake.ProcessId,
+		Constants.snowflake.TimeShift,
+		Constants.snowflake.WorkerIdBytes,
+		Constants.snowflake.ProcessIdBytes,
+	);
 
 	public cassandra!: Connection;
 
@@ -35,9 +42,9 @@ class App {
 
 	public static staticLogger: CustomLogger = new CustomLogger();
 
-	private clean: boolean = false;
+	private clean = false;
 
-	public internetAccess: boolean = false;
+	public internetAccess = false;
 
 	public static git: SimpleGit = simpleGit();
 
@@ -46,9 +53,9 @@ class App {
 		type: GitType;
 	}[] = [];
 
-	public static gitBranch: string = "Unknown";
+	public static gitBranch = "Unknown";
 
-	public static gitCommit: string = "Unknown";
+	public static gitCommit = "Unknown";
 
 	public static typeIndex = {
 		A: "Added",
@@ -78,8 +85,10 @@ class App {
 
 	public logo() {
 		this.logger.hex("#ca8911")(
-			`\n██╗  ██╗ █████╗ ███████╗████████╗███████╗██╗     \n██║ ██╔╝██╔══██╗██╔════╝╚══██╔══╝██╔════╝██║     \n█████╔╝ ███████║███████╗   ██║   █████╗  ██║     \n██╔═██╗ ██╔══██║╚════██║   ██║   ██╔══╝  ██║     \n██║  ██╗██║  ██║███████║   ██║   ███████╗███████╗\n╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝   ╚═╝   ╚══════╝╚══════╝\nA Chatting Application\nRunning version ${relative.Version ? `v${relative.Version}` : "Unknown version"
-			} of Kastel's Backend. Bun version ${Bun.version
+			`\n██╗  ██╗ █████╗ ███████╗████████╗███████╗██╗     \n██║ ██╔╝██╔══██╗██╔════╝╚══██╔══╝██╔════╝██║     \n█████╔╝ ███████║███████╗   ██║   █████╗  ██║     \n██╔═██╗ ██╔══██║╚════██║   ██║   ██╔══╝  ██║     \n██║  ██╗██║  ██║███████║   ██║   ███████╗███████╗\n╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝   ╚═╝   ╚══════╝╚══════╝\nA Chatting Application\nRunning version ${
+				relative.Version ? `v${relative.Version}` : "Unknown version"
+			} of Kastel's Backend. Bun version ${
+				Bun.version
 			}\nIf you would like to support this project please consider donating to https://opencollective.com/kastel\n`,
 		);
 	}
@@ -113,6 +122,17 @@ class App {
 			this.config.scyllaDB.networkTopologyStrategy,
 			this.config.scyllaDB.durableWrites,
 		);
+		
+		await Client.getInstance().connect({
+			keyspace: this.config.scyllaDB.keyspace,
+			nodes: this.config.scyllaDB.nodes,
+			password: this.config.scyllaDB.password,
+			username: this.config.scyllaDB.username,
+			db: {
+				durableWrites: this.config.scyllaDB.durableWrites,
+				networkTopologyStrategy: this.config.scyllaDB.networkTopologyStrategy
+			}
+		})
 
 		this.cache.on("Connected", () => this.logger.info("Connected to Redis"));
 		this.cache.on("Error", (err) => {
@@ -147,20 +167,28 @@ class App {
 	}
 
 	public checkObjectForBlacklistedFields(object: unknown, blacklistedFields: string[]): boolean {
-		if (typeof object !== "object" || object === null || object instanceof Date) return false;
+		if (typeof object !== "object" || object === null || object instanceof Date) {
+			return false;
+		}
 
 		if (Array.isArray(object)) {
 			for (const item of object) {
-				if (this.checkObjectForBlacklistedFields(item, blacklistedFields)) return true;
+				if (this.checkObjectForBlacklistedFields(item, blacklistedFields)) {
+					return true;
+				}
 			}
 
 			return false;
 		}
 
 		for (const [key, value] of Object.entries(object)) {
-			if (blacklistedFields.includes(key)) return true;
+			if (blacklistedFields.includes(key)) {
+				return true;
+			}
 
-			if (this.checkObjectForBlacklistedFields(value, blacklistedFields)) return true;
+			if (this.checkObjectForBlacklistedFields(value, blacklistedFields)) {
+				return true;
+			}
 		}
 
 		return false;
@@ -202,7 +230,8 @@ class App {
 			"Git Info:",
 			`Branch: ${App.gitBranch}`,
 			`Commit: ${githubInfo.CommitShort ?? githubInfo.Commit}`,
-			`Status: ${this.clean ? "Clean" : "Dirty - You will not be given support if something breaks with a dirty instance"
+			`Status: ${
+				this.clean ? "Clean" : "Dirty - You will not be given support if something breaks with a dirty instance"
 			}`,
 			this.clean ? "" : "=".repeat(40),
 			`${this.clean ? "" : "Changed Files:"}`,
@@ -299,12 +328,13 @@ class App {
 		return buckets;
 	}
 
-	public rabbitMQForwarder(topic: GetChannelTypes<typeof channels>, data: unknown) {
+	public rabbitMQForwarder(topic: GetChannelTypes<typeof channels>, data: unknown, raw = false) {
 		postMessage({
 			type: "rabbitMQ",
 			data: {
 				topic,
 				data,
+				raw,
 			},
 		});
 	}
@@ -321,36 +351,44 @@ class App {
 			return value;
 		});
 	}
-	
+
 	public get status() {
 		return {
 			has: (type: keyof typeof statusTypes, int: number) => {
 				const foundInt = statusTypes[type];
-				
+
 				return (int & foundInt) === foundInt;
 			},
 			remove: (type: keyof typeof statusTypes, int: number) => {
 				const foundInt = statusTypes[type];
-				
+
 				return int & ~foundInt;
 			},
 			add: (type: keyof typeof statusTypes, int: number) => {
 				const foundInt = statusTypes[type];
-				
+
 				return int | foundInt;
 			},
 			isOffline: (int: number) => {
 				return this.status.has("offline", int);
 			},
 			get: (int: number) => {
-				if (this.status.has("offline", int)) return "offline";
-				if (this.status.has("dnd", int)) return "dnd";
-				if (this.status.has("idle", int)) return "idle";
-				if (this.status.has("invisible", int)) return "invisible";
-				
+				if (this.status.has("offline", int)) {
+					return "offline";
+				}
+				if (this.status.has("dnd", int)) {
+					return "dnd";
+				}
+				if (this.status.has("idle", int)) {
+					return "idle";
+				}
+				if (this.status.has("invisible", int)) {
+					return "invisible";
+				}
+
 				return "online";
-			}
-		}
+			},
+		};
 	}
 
 	public get config() {

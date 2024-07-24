@@ -3,7 +3,7 @@ export { banDelete } from "./ban/delete";
 export { channelCreate } from "./channel/create";
 export { channelDelete } from "./channel/delete";
 export { channelUpdate } from "./channel/update";
-export { guildCreate } from "./guild/create"
+export { guildCreate } from "./guild/create";
 export { guildDelete } from "./guild/delete";
 export { guildUpdate } from "./guild/update";
 export { inviteCreate } from "./invite/create";
@@ -26,3 +26,4 @@ export { roleUpdate } from "./role/update";
 export { sessionCreate } from "./session/create";
 export { sessionDelete } from "./session/delete";
 export { userUpdate } from "./user/update";
+export { messageTyping } from "./message/typing.ts";

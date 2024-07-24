@@ -11,11 +11,11 @@ class Event {
 
 		this.KillSwitched = false;
 	}
-	
+
 	public get App() {
 		return this.#App;
 	}
-	
+
 	public set App(App: WebSocket) {
 		this.#App = App;
 	}
@@ -45,4 +45,4 @@ interface Event extends Decorators {}
 
 export default Event;
 
-export { Event };
+export type { Event };

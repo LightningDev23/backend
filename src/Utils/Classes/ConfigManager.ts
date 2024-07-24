@@ -61,7 +61,7 @@ export default class ConfigManager {
 
 	public validator = new Validator();
 
-	private watching: boolean = false;
+	private watching = false;
 
 	public config: MySchema | null = null;
 
@@ -94,7 +94,9 @@ export default class ConfigManager {
 
 				for (const [i, k] of keys.entries()) {
 					if (i === keys.length - 1) {
-						if (value === null) continue;
+						if (value === null) {
+							continue;
+						}
 						// @ts-expect-error -- too lazy to fix
 						currentObj[k] = value;
 					} else {

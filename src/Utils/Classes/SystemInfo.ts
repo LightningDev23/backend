@@ -76,7 +76,9 @@ class SystemInfo {
 		const osCpus = os.cpus();
 		const singleCpu = osCpus[0];
 
-		if (!singleCpu) throw new Error("Whar? Unable to get CPU info");
+		if (!singleCpu) {
+			throw new Error("Whar? Unable to get CPU info");
+		}
 
 		return {
 			coreCount: osCpus.length,
@@ -106,7 +108,9 @@ class SystemInfo {
 	public FormatBytes(bytes: number) {
 		const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
 
-		if (bytes <= 0) return "0 Byte";
+		if (bytes <= 0) {
+			return "0 Byte";
+		}
 
 		const byteCount = Math.floor(Math.log(bytes) / Math.log(1_024));
 
@@ -123,11 +127,21 @@ class SystemInfo {
 
 		const parts = [];
 
-		if (day > 0) parts.push(`${day}d`);
-		if (hour > 0) parts.push(`${hour}h`);
-		if (minute > 0) parts.push(`${minute}m`);
-		if (secs > 0) parts.push(`${secs}s`);
-		if (msRemainder > 0) parts.push(`${msRemainder}ms`);
+		if (day > 0) {
+			parts.push(`${day}d`);
+		}
+		if (hour > 0) {
+			parts.push(`${hour}h`);
+		}
+		if (minute > 0) {
+			parts.push(`${minute}m`);
+		}
+		if (secs > 0) {
+			parts.push(`${secs}s`);
+		}
+		if (msRemainder > 0) {
+			parts.push(`${msRemainder}ms`);
+		}
 
 		return parts.join(" ");
 	}

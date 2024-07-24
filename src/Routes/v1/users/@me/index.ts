@@ -14,8 +14,10 @@ import Middleware from "@/Utils/Classes/Routing/Decorators/Middleware.ts";
 import type { CreateRoute } from "@/Utils/Classes/Routing/Route.ts";
 import Route from "@/Utils/Classes/Routing/Route.ts";
 import Token from "@/Utils/Classes/Token.ts";
+import { settingsTable } from "@/Utils/Cql/Tables/SettingsTable.ts";
+import { usersTable } from "@/Utils/Cql/Tables/UserTable.ts";
 
-interface User {
+export interface User {
 	allowedInvites?: number;
 	avatar: string | null;
 	bio?: string | null;
@@ -63,9 +65,11 @@ export default class FetchPatch extends Route {
 		user,
 		query,
 		set,
-	}: CreateRoute<"/@me", any, [UserMiddlewareType], any, { include?: string; }>) {
-		const fetchedUser = await this.App.cassandra.models.User.get({
+	}: CreateRoute<"/@me", any, [UserMiddlewareType], any, { include?: string }>) {
+		const fetchedUser = await usersTable.get({
 			userId: Encryption.encrypt(user.id),
+		}, {
+			fields: ["flags", "publicFlags", "userId", "email", "username", "globalNickname", "tag", "avatar", "phoneNumber"]
 		});
 
 		if (!fetchedUser) {
@@ -75,17 +79,17 @@ export default class FetchPatch extends Route {
 			return "Internal Server Error :(";
 		}
 
-		const flags = new FlagFields(fetchedUser.flags, fetchedUser?.publicFlags ?? 0);
+		const flags = new FlagFields(fetchedUser.flags ?? "0", fetchedUser.publicFlags ?? "0");
 
 		const include = query.include?.split(",") ?? [];
 
 		const userObject: User = {
-			id: fetchedUser.userId,
-			email: fetchedUser.email, // TODO: If its oauth, check if they got the user.indentity.email scope
+			id: fetchedUser.userId!,
+			email: fetchedUser.email ?? "", // TODO: If its oauth, check if they got the user.indentity.email scope
 			emailVerified: flags.has("EmailVerified"),
-			username: fetchedUser.username,
+			username: fetchedUser.username ?? "",
 			globalNickname: fetchedUser.globalNickname,
-			tag: fetchedUser.tag,
+			tag: fetchedUser.tag ?? "",
 			avatar: fetchedUser.avatar,
 			publicFlags: String(flags.PublicFlags.cleaned),
 			flags: String(flags.PrivateFlags.cleaned),
@@ -94,8 +98,24 @@ export default class FetchPatch extends Route {
 			mfaVerified: flags.has("TwoFaVerified"),
 		};
 
-		if (include.includes("bio")) userObject.bio = user.settings?.bio ?? null;
-		if (include.includes("invites")) userObject.allowedInvites = user.settings?.allowedInvites ?? null;
+		if (include.includes("bio")) {
+			const settings = await settingsTable.get(
+				{
+					userId: Encryption.encrypt(user.id),
+				},
+				{
+					fields: ["bio"],
+				},
+			);
+
+			if (settings) {
+				userObject.bio = Encryption.decrypt(settings.bio ?? "") || null;
+			}
+		}
+
+		if (include.includes("invites")) {
+			userObject.allowedInvites = user.settings?.allowedInvites ?? null;
+		}
 
 		return Encryption.completeDecryption(userObject);
 	}
@@ -181,13 +201,19 @@ export default class FetchPatch extends Route {
 			}
 
 			if (!failedToUpdateSelf.hasErrors()) {
-				if (body.username) stuffToUpdate.username = Encryption.encrypt(body.username);
+				if (body.username) {
+					stuffToUpdate.username = Encryption.encrypt(body.username);
+				}
 
-				if (body.tag) stuffToUpdate.tag = body.tag;
+				if (body.tag) {
+					stuffToUpdate.tag = body.tag;
+				}
 			}
 		}
 
-		if (body.globalNickname) stuffToUpdate.globalNickname = Encryption.encrypt(body.globalNickname);
+		if (body.globalNickname !== undefined) {
+			stuffToUpdate.globalNickname = body.globalNickname ? Encryption.encrypt(body.globalNickname) : null;
+		}
 
 		if (failedToUpdateSelf.hasErrors()) {
 			set.status = 400;
@@ -233,12 +259,12 @@ export default class FetchPatch extends Route {
 			stuffToUpdate.token = newToken;
 		}
 
-		if (body.bio) {
+		if (body.bio !== undefined) {
 			await this.App.cassandra.models.Settings.update({
 				userId: Encryption.encrypt(user.id),
-				bio: Encryption.encrypt(body.bio),
+				bio: body.bio ? Encryption.encrypt(body.bio) : null,
 			});
-			
+
 			user.settings.bio = body.bio;
 		}
 
@@ -270,7 +296,7 @@ export default class FetchPatch extends Route {
 			stuffToUpdate.phoneNumber = Encryption.encrypt(body.phoneNumber);
 		}
 
-		if (Object.keys(stuffToUpdate).length === 0 && !body.bio) {
+		if (Object.keys(stuffToUpdate).length === 0 && body.bio === undefined) {
 			set.status = 400;
 
 			failedToUpdateSelf.addError({
@@ -293,11 +319,15 @@ export default class FetchPatch extends Route {
 		// @ts-expect-error -- We dont need to add the other stuff (since its not being used anyways)
 		const fetched = await this.getFetch({
 			user,
-			query: body.bio ? { include: "bio" } : {},
+			query: body.bio === undefined ? {} : { include: "bio" },
 			set,
 		});
 
-		if (typeof fetched === "string") return fetched;
+		if (typeof fetched === "string") {
+			return fetched;
+		}
+
+		this.App.rabbitMQForwarder("user.update", fetched);
 
 		return {
 			...fetched,
@@ -313,7 +343,6 @@ export default class FetchPatch extends Route {
 		},
 		fields: string[],
 	) {
-		// eslint-disable-next-line unicorn/no-array-method-this-argument
 		const fetched = await this.App.cassandra.models.User.find(opts, {
 			fields: fields as any, // ? Due to me changing something string[] won't work anymore, but this should be safe
 		});

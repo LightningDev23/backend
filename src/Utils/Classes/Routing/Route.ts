@@ -1,6 +1,4 @@
-import type { CookieOptions } from "elysia";
-import type { Prettify } from "elysia/types";
-import type { HTTPStatusName } from "elysia/utils";
+import type { StatusMap } from "elysia";
 import type { GetParams } from "@/Types/Routes.ts";
 import type API from "../API.ts";
 
@@ -46,19 +44,11 @@ interface CreateRouteOptions<
 	query: query;
 	request: globalThis.Request;
 	set: {
-		cookie?: Record<
-			string,
-			Prettify<
-				CookieOptions & {
-					value: string;
-				}
-			>
-		>;
 		headers: Record<string, string> & {
 			"Set-Cookie"?: string[] | string;
 		};
 		redirect?: string;
-		status?: HTTPStatusName | number;
+		status?: number | keyof StatusMap;
 	};
 	store: {};
 }

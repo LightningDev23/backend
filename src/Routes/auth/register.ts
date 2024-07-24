@@ -66,7 +66,12 @@ export default class Register extends Route {
 		const foundUsers = await this.fetchUser({ username: Encryption.encrypt(body.username) }, ["tag"]);
 		const tag = tagGenerator(foundUsers.map((usr) => usr.tag));
 
-		if (!foundPlatformInvite && this.App.config.server.features.includes("InviteBasedRegistration") || foundPlatformInvite && !foundPlatformInvite.usedById && (new Date(foundPlatformInvite.expiresAt)?.getTime() ?? 0) < Date.now()) {
+		if (
+			(!foundPlatformInvite && this.App.config.server.features.includes("InviteBasedRegistration")) ||
+			(foundPlatformInvite &&
+				!foundPlatformInvite.usedById &&
+				(new Date(foundPlatformInvite.expiresAt)?.getTime() ?? 0) < Date.now())
+		) {
 			failed.addError({
 				platformInvite: {
 					code: "InvalidInvite",
@@ -77,7 +82,6 @@ export default class Register extends Route {
 			set.status = 400;
 
 			return failed.toJSON(); // ? This is the only place this happens, we don't want to leak if the email is already taken, or if that max usernames has been reached
-
 		}
 
 		if (foundUser.length > 0) {
@@ -144,6 +148,8 @@ export default class Register extends Route {
 			userId: userObject.userId,
 			guildOrder: [],
 			allowedInvites: 0, // ? You get 0 invites on creation
+			emojiPack: "twemoji",
+			navLocation: "bottom",
 		};
 
 		if (foundPlatformInvite) {
@@ -179,7 +185,6 @@ export default class Register extends Route {
 		},
 		fields: string[],
 	) {
-		// eslint-disable-next-line unicorn/no-array-method-this-argument
 		const fetched = await this.App.cassandra.models.User.find(opts, {
 			fields: fields as any, // ? Due to me changing something string[] won't work anymore, but this should be safe
 		});

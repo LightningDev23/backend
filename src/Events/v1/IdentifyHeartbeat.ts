@@ -1,4 +1,5 @@
-import { permissionOverrideTypes, presenceTypes } from "@/Constants.ts";
+import { permissionOverrideTypes, presenceTypes, statusTypes } from "@/Constants.ts";
+import type { finishedGuild } from "@/Routes/v1/guilds/index.ts";
 import FetchGuilds from "@/Routes/v1/guilds/index.ts";
 import FetchPatch from "@/Routes/v1/users/@me/index.ts";
 import type { Infer } from "@/Types/BodyValidation.ts";
@@ -28,54 +29,33 @@ const identifyData = {
 	},
 };
 
-interface finishedGuilds {
-	channels?: {
-		ageRestricted: boolean;
-		children: string[];
-		description: string | null;
-		id: string;
-		name: string;
-		parentId: string | null;
-		permissionOverrides: {
-			[id: string]: {
-				allow: [string, string][];
-				deny: [string, string][];
-				slowmode: number;
-				type: number;
-			};
+interface identifyFinishedGuilds extends finishedGuild {
+	channelProperties: {
+		channelId: string;
+		lastMessageAckId: string | null;
+		timedoutUntil: string | null; // ? for slowmode, let the client know when they can start typing again
+	}[];
+	members?: {
+		joinedAt: string;
+		nickname: string | null;
+		owner: boolean;
+		presence: {
+			since: number | null;
+			state: string | null;
+			status: number;
+			type: number;
+		}[];
+		roles: string[];
+		user: {
+			avatar: string | null;
+			flags: string;
+			id: string;
+			publicFlags: string;
+			tag: string;
+			username: string;
 		};
-		position: number;
-		slowmode: number;
-		type: number;
 	}[];
-	coOwners?: string[];
-	description?: string | null;
-	features?: string[];
-	flags?: number;
-	icon: string | null;
-	id: string;
-	maxMembers?: number;
-	members?: { joinedAt: string, nickname: string | null; owner: boolean; roles: string[]; user: { avatar: string | null; flags: string; id: string; publicFlags: string; username: string; }; }[];
-	name: string;
-	owner?: {
-		avatar: string | null;
-		flags: string;
-		globalNickname: string | null;
-		id: string;
-		publicFlags: string;
-		tag: string;
-		username: string;
-	} | null | undefined;
-	roles?: {
-		allowedAgeRestricted: boolean;
-		color: number;
-		hoist: boolean;
-		id: string;
-		name: string;
-		permissions: [string, string][];
-		position: number;
-	}[];
-	unavailable?: boolean;
+	unavailable: boolean;
 }
 
 export default class IdentifyAndHeartbeat extends Event {
@@ -88,22 +68,39 @@ export default class IdentifyAndHeartbeat extends Event {
 	@AuthRequired()
 	@Validator(heartbeatData)
 	public heartbeat(user: User, data: Infer<typeof heartbeatData>) {
-		this.App.logger.debug(`Expecting ${user.sequence}, received ${data.seq}, is correct: ${data.seq === user.sequence}`);
+		this.App.logger.debug(
+			`Expecting ${user.sequence}, received ${data.seq}, is correct: ${data.seq === user.sequence}`,
+		);
 
-		if (data.seq !== user.sequence) {
-			user.close(errorCodes.invalidSequence); // ? if the seq is not the same as the last seq, close the connection
+		// if (data.seq !== user.sequence) {
+		// 	user.close(errorCodes.invalidSequence); // ? if the seq is not the same as the last seq, close the connection
 
-			return;
+		// 	return;
+		// }
+
+		if (user.lastHeartbeat + 10_000 > Date.now()) {
+			return; // ? if the last heartbeat was less than 10 seconds ago, ignore it
 		}
-
-		if (user.lastHeartbeat + 10_000 > Date.now()) return; // ? if the last heartbeat was less than 10 seconds ago, ignore it
 
 		user.lastHeartbeat = Date.now();
 
-		user.send({
-			op: opCodes.heartbeatAck,
-			data: null,
-		}, false);
+		postMessage({
+			type: "heartbeat",
+			data: {
+				event: "heartbeat",
+				data: {
+					sessionId: user.sessionId,
+				},
+			},
+		});
+
+		user.send(
+			{
+				op: opCodes.heartbeatAck,
+				data: null,
+			},
+			false,
+		);
 	}
 
 	@Description("Identify the user to the server")
@@ -113,7 +110,9 @@ export default class IdentifyAndHeartbeat extends Event {
 	public async identify(user: User, data: Infer<typeof identifyData>) {
 		const authed = await user.authenticate(data.token);
 
-		if (!authed) return; // ? nothing else to do
+		if (!authed) {
+			return; // ? nothing else to do
+		}
 
 		user.metadata = data.meta;
 
@@ -128,19 +127,19 @@ export default class IdentifyAndHeartbeat extends Event {
 		const fetchedGuilds = await fetchGuildData.getGuilds({
 			user: user.translation(),
 			query: {
-				include: "channels,roles,owners"
-			}
+				include: "channels,roles,owners",
+			},
 		});
 
 		const fetchedUser = await fetchUserData.getFetch({
 			user: user.translation(),
 			query: {
-				include: "bio"
+				include: "bio",
 			},
 			// @ts-expect-error -- nothing else needed
 			set: {
-				status: 200
-			}
+				status: 200,
+			},
 		});
 
 		if (typeof fetchedUser === "string") {
@@ -149,27 +148,80 @@ export default class IdentifyAndHeartbeat extends Event {
 			return;
 		}
 
-		const finishedGuilds: finishedGuilds[] = [];
+		user.fetchedUser = fetchedUser;
+
+		const finishedGuilds: identifyFinishedGuilds[] = [];
+
+		if (user.settings.status === "offline") {
+			await user.setStatus("online");
+		}
+
+		const got = await this.App.cache.get(`user:${Encryption.encrypt(user.id)}`);
+
+		if (!got || typeof got !== "string") {
+			await this.App.cache.set(
+				`user:${Encryption.encrypt(user.id)}`,
+				JSON.stringify([
+					{
+						type: presenceTypes.custom,
+						state: user.settings.customStatus,
+						status: user.settings.status,
+						since: Date.now(),
+						sessionId: user.sessionId,
+					},
+				]),
+			);
+		}
+
+		const parsed = JSON.parse((got as string) ?? "[]") as {
+			sessionId: string | null;
+			since: number | null;
+			state: string | null;
+			status: number;
+			type: number;
+		}[];
+
+		const presences = [
+			{
+				type: presenceTypes.custom,
+				state: user.settings.customStatus,
+				status: user.settings.status,
+				since: Date.now(),
+				current: true,
+				sessionId: user.sessionId,
+			},
+			...parsed.map((prec) => ({
+				...prec,
+				current: false,
+			})),
+		];
 
 		for (const guild of fetchedGuilds) {
 			user.subscribe(`guild:${guild.id}`);
+			user.subscribe(`guild:${guild.id}:members`);
 
-			const finishedGuild: finishedGuilds = {
-				name: guild.name,
-				description: guild.description,
-				features: guild.features,
+			const finishedGuild: identifyFinishedGuilds = {
+				name: guild.name ?? null,
+				description: guild.description ?? null,
+				features: guild.features ?? [],
 				id: guild.id,
-				icon: guild.icon,
-				owner: guild.owner,
-				coOwners: guild.coOwners,
-				maxMembers: guild.maxMembers,
-				flags: guild.flags,
-				channels: guild.channels,
-				roles: guild.roles,
-				members: []
+				icon: guild.icon ?? null,
+				owner: guild.owner ?? null,
+				coOwners: guild.coOwners ?? [],
+				maxMembers: guild.maxMembers ?? 0,
+				flags: guild.flags ?? 0,
+				channels: guild.channels ?? [],
+				roles: guild.roles ?? [],
+				members: [],
+				channelProperties: [],
+				unavailable: false,
 			};
 
-			const guildMember = await this.App.cassandra.models.GuildMember.get({ guildId: Encryption.encrypt(guild.id), userId: Encryption.encrypt(user.id) });
+			const guildMember = await this.App.cassandra.models.GuildMember.get({
+				guildId: Encryption.encrypt(guild.id),
+				userId: Encryption.encrypt(user.id),
+				left: false,
+			});
 
 			if (!guildMember) {
 				this.App.logger.warn(`GuildMember not found for ${user.id} in ${guild.id}`);
@@ -177,36 +229,81 @@ export default class IdentifyAndHeartbeat extends Event {
 				continue;
 			}
 
-			const first100Members = (await this.App.cassandra.models.GuildMember.find({ guildId: Encryption.encrypt(guild.id) }, { limit: 100 })).toArray();
+			for (const ack of guildMember.channelAcks ?? []) {
+				finishedGuild.channelProperties.push({
+					channelId: ack.channelId,
+					lastMessageAckId: ack.messageId,
+					timedoutUntil: null,
+				});
+			}
 
-			const permCheck = new PermissionHandler(user.id, guildMember.flags, guild.roles.map((role) => ({
-				id: role.id,
-				permissions: role.permissions,
-				position: role.position
-			})), guild.channels.map((channel) => ({
-				id: channel.id,
-				overrides: Object.entries(channel.permissionOverrides).map(([id, override]) => ({
-					id,
-					allow: override.allow,
-					deny: override.deny,
-					type: override.type === permissionOverrideTypes.Role ? "Role" : permissionOverrideTypes.Everyone ? "Role" : "Member"
-				}))
-			})));
+			for (const timeout of guildMember.timeouts ?? []) {
+				const foundChannel = finishedGuild.channelProperties.find((channel) => channel.channelId === timeout.channelId);
 
-			for (const channel of guild.channels) {
+				if (foundChannel) {
+					foundChannel.timedoutUntil = timeout.timeoutUntil.toISOString();
+				} else {
+					finishedGuild.channelProperties.push({
+						channelId: timeout.channelId,
+						lastMessageAckId: null,
+						timedoutUntil: timeout.timeoutUntil.toISOString(),
+					});
+				}
+			}
+
+			const first100Members = (
+				await this.App.cassandra.models.GuildMember.find(
+					{ guildId: Encryption.encrypt(guild.id), left: false },
+					{ limit: 100 },
+				)
+			).toArray();
+
+			const permCheck = new PermissionHandler(
+				user.id,
+				guildMember.flags,
+				guild.roles?.map((role) => ({
+					id: role.id,
+					permissions: role.permissions,
+					position: role.position,
+				})) ?? [],
+				guild.channels?.map((channel) => ({
+					id: channel.id,
+					overrides: Object.entries(channel.permissionOverrides).map(([id, override]) => ({
+						id,
+						allow: override.allow,
+						deny: override.deny,
+						type: override.type === permissionOverrideTypes.Member ? "Member" : "Role",
+					})),
+				})) ?? [],
+			);
+
+			for (const channel of finishedGuild.channels!) {
+				if (!finishedGuild.channelProperties.some((prop) => prop.channelId === channel.id)) {
+					finishedGuild.channelProperties.push({
+						channelId: channel.id,
+						lastMessageAckId: null,
+						timedoutUntil: null,
+					});
+				}
+
 				if (permCheck.hasChannelPermission(channel.id, ["ViewChannels"])) {
 					user.subscribe(`channel:messages:${channel.id}`);
 					user.subscribe(`channel:messages:${channel.id}:reactions`);
 					user.subscribe(`channel:messages:${channel.id}:pins`);
 				}
 
-				if (permCheck.hasChannelPermission(channel.id, ["ViewChannels", "ViewMessageHistory"])) user.subscribe(`channel:messages:${channel.id}:typing`); // ? can only see typing events if they can see the channel and view messages
+				if (permCheck.hasChannelPermission(channel.id, ["ViewChannels", "ViewMessageHistory"])) {
+					user.subscribe(`channel:messages:${channel.id}:typing`); // ? can only see typing events if they can see the channel and view messages
+				}
 
 				user.subscribe(`channel:${channel.id}`);
 			}
 
 			for (const member of Encryption.completeDecryption(first100Members)) {
-				const fetchedUser = await this.App.cassandra.models.User.get({ userId: Encryption.encrypt(member.userId) }, { fields: ["username", "userId", "flags", "publicFlags", "avatar"] });
+				const fetchedUser = await this.App.cassandra.models.User.get(
+					{ userId: Encryption.encrypt(member.userId) },
+					{ fields: ["username", "userId", "flags", "publicFlags", "avatar", "tag"] },
+				);
 
 				if (!fetchedUser) {
 					this.App.logger.warn(`User not found for ${member.userId} in ${guild.id}`);
@@ -214,29 +311,47 @@ export default class IdentifyAndHeartbeat extends Event {
 					continue;
 				}
 
-				finishedGuild.members?.push({
+				const data = {
 					user: {
 						username: fetchedUser.username,
 						id: fetchedUser.userId,
 						flags: fetchedUser.flags,
 						publicFlags: fetchedUser.publicFlags,
-						avatar: fetchedUser.avatar
+						avatar: fetchedUser.avatar,
+						tag: fetchedUser.tag,
 					},
 					owner: finishedGuild.owner?.id === member.userId,
 					nickname: member.nickname,
 					roles: member.roles,
-					joinedAt: member.joinedAt.toISOString()
-				});
+					joinedAt: member.joinedAt.toISOString(),
+					presence: [],
+				};
+
+				if (data.user.id === Encryption.encrypt(user.id)) {
+					// @ts-expect-error -- it's fine
+					data.presence = presences;
+				} else {
+					const fetchedPresence = await this.App.cache.get(`user:${fetchedUser.userId}`);
+					const parsedPresence = JSON.parse(
+						(fetchedPresence as string) ??
+							`[{ "sessionId": null, "since": null, "state": null, "type": ${presenceTypes.custom}, "status": ${statusTypes.offline} }]`,
+					) as { sessionId: string | null; since: number | null; state: string | null; status: number; type: number }[];
+
+					// @ts-expect-error -- it's fine
+					data.presence = parsedPresence.map((pre) => ({
+						...pre,
+						sessionId: undefined,
+						current: undefined,
+					}));
+				}
+
+				finishedGuild.members?.push(data);
 			}
 
 			finishedGuilds.push(finishedGuild);
 		}
 
 		user.lastHeartbeat = Date.now();
-
-		if (user.settings.status === "offline") {
-			await user.setStatus("online");
-		}
 
 		user.send({
 			op: opCodes.ready,
@@ -247,17 +362,42 @@ export default class IdentifyAndHeartbeat extends Event {
 					language: user.settings.language,
 					privacy: user.settings.privacy,
 					theme: user.settings.theme,
-					guildOrder: user.settings.guildOrder
+					guildOrder: user.settings.guildOrder,
+					emojiPack: user.settings.emojiPack ?? "twemoji",
+					navBarLocation: user.settings.navBarLocation ?? "bottom",
 				},
-				presence: [{
-					type: presenceTypes.custom,
-					state: user.settings.customStatus,
-					status: user.settings.status,
-					since: Date.now(),
-					current: true
-				}]
+				presence: presences,
 			},
-			seq: user.sequence + 1
+			seq: user.sequence + 1,
 		});
+
+		await this.App.cache.set(`user:${Encryption.encrypt(user.id)}`, JSON.stringify(presences));
+
+		for (const guild of finishedGuilds) {
+			this.App.publish(
+				`guild:${guild.id}:members`,
+				{
+					op: opCodes.event,
+					event: "PresencesUpdate",
+					data: {
+						user: {
+							id: fetchedUser.id,
+							username: fetchedUser.username,
+							avatar: fetchedUser.avatar,
+							tag: fetchedUser.tag,
+							publicFlags: fetchedUser.publicFlags,
+							flags: fetchedUser.flags,
+						},
+						guildId: guild.id,
+						presences: presences.map((pre) => ({
+							...pre,
+							sessionId: undefined,
+							current: undefined,
+						})),
+					},
+				},
+				[user],
+			);
+		}
 	}
 }

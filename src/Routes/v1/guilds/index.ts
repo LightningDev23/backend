@@ -19,23 +19,26 @@ import type { bigintPair } from "@/Utils/Cql/Types/PermissionsOverides.ts";
 import type Roles from "@/Utils/Cql/Types/Role.ts";
 import type { Channel, Guild, GuildMember, PermissionOverride } from "@/Utils/Cql/Types/index.ts";
 import { fixChannelPositionsWithoutNewChannel } from "@/Utils/Versioning/v1/FixChannelPositions.ts";
-
-const permissionOverrideType = (value: any): value is [[string, string]] => {
-	return (
-		Array.isArray(value) &&
-		value.every((v) => Array.isArray(v) && v.length === 2 && typeof v[0] === "string" && typeof v[1] === "string")
-	);
-};
+import permissionOverrideType from "@/Utils/Versioning/v1/permissionOverrideType.ts";
+import FetchCreateMessages from "../channels/[channelId]/messages/index.ts";
+import { guildsTable, type GuildTable } from "@/Utils/Cql/Tables/GuildTable.ts";
+import { usersTable } from "@/Utils/Cql/Tables/UserTable.ts";
+import { rolesTable, type RoleTable } from "@/Utils/Cql/Tables/RoleTable.ts";
+import type { ChannelTable } from "@/Utils/Cql/Tables/ChannelTable.ts";
+import type { PermissionsOverridesTable } from "@/Utils/Cql/Tables/PermissionsOverideTable.ts";
 
 const postGuild = {
-	name: string().max(Constants.settings.Max.GuildNameLength),
+	name: string().max(Constants.settings.Max.GuildNameLength).min(2),
 	description: string().max(Constants.settings.Max.GuildDescriptionLength).optional().nullable(),
 	channels: array({
 		id: snowflake().optional(),
-		name: string().max(32),
+		name: string().max(32).min(2),
 		description: string().max(256).optional().nullable(),
-		// type: number(),
-		type: enums(Object.values(Constants.channelTypes)),
+		type: enums(
+			Object.entries(Constants.channelTypes)
+				.filter(([key]) => key.startsWith("Guild"))
+				.map(([, value]) => value),
+		),
 		parentId: snowflake().optional().nullable(),
 		permissionOverrides: object(
 			{
@@ -73,12 +76,13 @@ const postGuild = {
 	).array(),
 };
 
-interface finishedGuild {
-	channels: {
+export interface finishedGuild {
+	channels?: {
 		ageRestricted: boolean;
 		children: string[];
 		description: string | null;
 		id: string;
+		lastMessageId: string | null;
 		name: string;
 		parentId: string | null;
 		permissionOverrides: {
@@ -93,13 +97,13 @@ interface finishedGuild {
 		slowmode: number;
 		type: number;
 	}[];
-	coOwners: string[];
-	description: string | null;
-	features: string[];
-	flags: number;
+	coOwners?: string[];
+	description?: string | null;
+	features?: string[];
+	flags?: number;
 	icon: string | null;
 	id: string;
-	maxMembers: number;
+	maxMembers?: number;
 	name: string;
 	owner?: {
 		avatar: string | null;
@@ -111,7 +115,7 @@ interface finishedGuild {
 		username: string;
 	} | null;
 	ownerId?: string;
-	roles: {
+	roles?: {
 		allowedAgeRestricted: boolean;
 		color: number;
 		hoist: boolean;
@@ -120,6 +124,15 @@ interface finishedGuild {
 		permissions: [string, string][];
 		position: number;
 	}[];
+}
+
+export interface rawGuild {
+	channels: {
+		channel: ChannelTable;
+		overrides: PermissionsOverridesTable[];
+	}[];
+	guild: GuildTable;
+	roles: RoleTable[];
 }
 
 export default class FetchGuilds extends Route {
@@ -136,16 +149,7 @@ export default class FetchGuilds extends Route {
 			AllowedRequesters: "User",
 		}),
 	)
-	public async getGuilds({ user, query }: CreateRoute<"/guilds", any, [UserMiddlewareType], any, { include: string; }>) {
-		interface rawGuild {
-			channels: {
-				channel: Channel;
-				overrides: PermissionOverride[];
-			}[];
-			guild: Guild;
-			roles: Roles[];
-		}
-
+	public async getGuilds({ user, query }: CreateRoute<"/guilds", any, [UserMiddlewareType], any, { include: string }>) {
 		const rawFinishedGuild: rawGuild[] = [];
 		const invalidGuildIds: string[] = [];
 		const include: ("channels" | "owners" | "roles")[] = query.include
@@ -153,9 +157,14 @@ export default class FetchGuilds extends Route {
 			: [];
 
 		for (const guild of user.guilds) {
-			const fetchedGuild = await this.App.cassandra.models.Guild.get({
-				guildId: Encryption.encrypt(guild),
-			});
+			const fetchedGuild = await guildsTable.get(
+				{
+					guildId: Encryption.encrypt(guild),
+				},
+				{
+					fields: ["coOwners", "description", "features", "flags", "icon", "maxMembers", "name", "ownerId", "guildId"],
+				},
+			);
 
 			if (!fetchedGuild) {
 				this.App.logger.warn(`Failed to fetch guild ${guild} for user ${user.id}`);
@@ -167,21 +176,27 @@ export default class FetchGuilds extends Route {
 
 			const rawChannels = include.includes("channels")
 				? await this.App.cassandra.models.Channel.find({
-					guildId: Encryption.encrypt(guild),
-				})
+						guildId: Encryption.encrypt(guild),
+					})
 				: null;
 
 			const rawRoles = include.includes("roles")
-				? await this.App.cassandra.models.Role.find({
-					guildId: Encryption.encrypt(guild),
-				})
+				? await rolesTable.find({
+						guildId: Encryption.encrypt(guild),
+					})
 				: null;
 
 			const raw: rawGuild = {
-				guild: fetchedGuild,
-				roles: rawRoles ? rawRoles.toArray() : [],
+				guild: fetchedGuild as GuildTable,
+				roles: rawRoles ? (rawRoles.toArray() as RoleTable[]) : [],
 				channels: rawChannels
-					? fixChannelPositionsWithoutNewChannel(rawChannels.toArray()).map((channel) => ({ channel, overrides: [] }))
+					? (fixChannelPositionsWithoutNewChannel(rawChannels.toArray()).map((channel) => ({
+							channel,
+							overrides: [],
+						})) as {
+							channel: ChannelTable;
+							overrides: PermissionsOverridesTable[];
+						}[])
 					: [],
 			};
 
@@ -202,7 +217,9 @@ export default class FetchGuilds extends Route {
 					channel.overrides.push(found);
 				}
 
-				if (!channel.overrides) channel.overrides = [];
+				if (!channel.overrides) {
+					channel.overrides = [];
+				}
 			}
 
 			rawFinishedGuild.push(raw);
@@ -223,6 +240,8 @@ export default class FetchGuilds extends Route {
 
 		const guilds: finishedGuild[] = [];
 
+		const messageFetcher = new FetchCreateMessages(this.App);
+
 		for (const rawGuild of rawFinishedGuild) {
 			const guild: Partial<finishedGuild> = {
 				name: Encryption.decrypt(rawGuild.guild.name),
@@ -238,9 +257,14 @@ export default class FetchGuilds extends Route {
 			};
 
 			if (include.includes("owners")) {
-				const fetchedUser = await this.App.cassandra.models.User.get({
-					userId: rawGuild.guild.ownerId,
-				});
+				const fetchedUser = await usersTable.get(
+					{
+						userId: rawGuild.guild.ownerId,
+					},
+					{
+						fields: ["avatar", "flags", "publicFlags", "globalNickname", "tag", "username", "userId"],
+					},
+				);
 
 				if (!fetchedUser) {
 					guild.owner = null;
@@ -254,12 +278,12 @@ export default class FetchGuilds extends Route {
 
 				guild.owner = {
 					avatar: fetchedUser.avatar ? Encryption.decrypt(fetchedUser.avatar) : null,
-					flags: fetchedUser.flags,
+					flags: fetchedUser.flags ?? "0",
 					globalNickname: fetchedUser.globalNickname ? Encryption.decrypt(fetchedUser.globalNickname) : null,
-					id: Encryption.decrypt(fetchedUser.userId),
-					publicFlags: fetchedUser.publicFlags,
-					tag: fetchedUser.tag,
-					username: Encryption.decrypt(fetchedUser.username),
+					id: Encryption.decrypt(fetchedUser.userId!),
+					publicFlags: fetchedUser.publicFlags ?? "0",
+					tag: fetchedUser.tag ?? "0000",
+					username: Encryption.decrypt(fetchedUser.username ?? ""),
 				};
 			} else {
 				guild.ownerId = Encryption.decrypt(rawGuild.guild.ownerId);
@@ -289,6 +313,7 @@ export default class FetchGuilds extends Route {
 						}),
 					),
 					position: channel.channel.position,
+					lastMessageId: await messageFetcher.getLastMessageId(Encryption.decrypt(channel.channel.channelId)),
 				});
 			}
 
@@ -329,7 +354,7 @@ export default class FetchGuilds extends Route {
 			maxGuild.addError({
 				guild: {
 					code: "MaxGuildsReached",
-					message: `You've created the max amount of guilds, you can only create ${canCreate.max} guilds.`,
+					message: `You've created or joined the max amount of guilds, you can only have "${canCreate.max}" guilds.`,
 				},
 			});
 
@@ -392,6 +417,7 @@ export default class FetchGuilds extends Route {
 					rl.position = 0;
 					rl.hoist = false;
 					rl.color = 0;
+					rl.name = "everyone";
 				} else {
 					rl.id = this.App.snowflake.generate();
 				}
@@ -400,33 +426,36 @@ export default class FetchGuilds extends Route {
 
 				newRoles.push(rl as role);
 			}
+
+			if (!newRoles.some((role) => role.id === guildId)) {
+				newRoles.push({
+					color: 0,
+					hoist: false,
+					id: guildId,
+					name: "everyone",
+					oldId: null,
+					permissions: null,
+					position: 0,
+				});
+			}
 		}
 
 		if (body.channels) {
 			// ? We sort the channels where, any channel with the type of "Category (App.Constants.channelTypes.GuildCategory)" is first
 			// ? We then sort by the channels that have "parentId" then anything else goes through
-			const sortedChannels = body.channels.sort((a, b) => {
-				if (a.type === Constants.channelTypes.GuildCategory) {
-					return -1;
-				}
-
-				if (b.type === Constants.channelTypes.GuildCategory) {
-					return 1;
-				}
-
-				if (a.parentId && !b.parentId) {
-					return -1;
-				}
-
-				if (b.parentId && !a.parentId) {
-					return 1;
-				}
-
-				return 0;
+			const fixedChannels = body.channels.map((channel, index) => {
+				return {
+					...channel,
+					position: channel.position ?? index,
+				};
 			});
 
+			const sortedChannels = this.sortChannels(fixedChannels);
+
 			for (const channel of sortedChannels) {
-				if (channel.id && newChannels.some((c) => c.oldId === channel.id)) continue;
+				if (channel.id && newChannels.some((c) => c.oldId === channel.id)) {
+					continue;
+				}
 
 				// ? We generate a new channel id, since we do not trust the client
 				// ? The clients ids though are used categories so clients can build a guild on the initial creation instead of after its created
@@ -449,9 +478,15 @@ export default class FetchGuilds extends Route {
 						if (permission.type === Constants.permissionOverrideTypes.Role) {
 							const foundRole = newRoles.find((r) => r.oldId === id);
 
-							if (!foundRole) continue; // silently ignore it
-							if (permission.allow && !permissionOverrideType(permission.allow)) continue; // silently ignore it
-							if (permission.deny && !permissionOverrideType(permission.deny)) continue; // silently ignore it
+							if (!foundRole) {
+								continue; // silently ignore it
+							}
+							if (permission.allow && !permissionOverrideType(permission.allow)) {
+								continue; // silently ignore it
+							}
+							if (permission.deny && !permissionOverrideType(permission.deny)) {
+								continue; // silently ignore it
+							}
 
 							const permId = this.App.snowflake.generate();
 
@@ -470,8 +505,15 @@ export default class FetchGuilds extends Route {
 					}
 				}
 
+				// ? If the channel type is not a Category, it cannot have spaces in the name (we will replace them with a hyphen)
+				// ? as well as that, all channel names can only have a-z 0-9 and unicode characters
+				const newName =
+					channel.type === Constants.channelTypes.GuildCategory
+						? channel.name
+						: channel.name.replaceAll(/[^\da-z]/gi, "-").replaceAll(/-+/g, "-");
+
 				newChannels.push({
-					name: channel.name,
+					name: newName,
 					type: channel.type,
 					description: channel.description ?? null,
 					id: newId,
@@ -491,7 +533,7 @@ export default class FetchGuilds extends Route {
 				type: channel.type,
 				channelId: Encryption.encrypt(channel.id),
 				children: newChannels.filter((c) => c.parentId === channel.id).map((c) => c.id),
-				description: channel.description ?? null,
+				description: channel.description ? Encryption.encrypt(channel.description) : null,
 				guildId: Encryption.encrypt(guildId),
 				name: Encryption.encrypt(channel.name),
 				ageRestricted: channel.ageRestricted ?? false,
@@ -540,35 +582,28 @@ export default class FetchGuilds extends Route {
 			roles: [Encryption.encrypt(guildId)],
 			timeouts: [],
 			userId: Encryption.encrypt(user.id),
-			guildMemberId: this.App.snowflake.generate()
-		});
-
-		members.push({
-			flags: Constants.guildMemberFlags.In,
-			guildId: Encryption.encrypt(guildId),
-			joinedAt: new Date(),
-			nickname: null,
-			roles: [Encryption.encrypt(guildId)],
-			timeouts: [],
-			userId: "123",
-			guildMemberId: this.App.snowflake.generate()
+			guildMemberId: this.App.snowflake.generate(),
+			channelAcks: [],
+			left: false,
 		});
 
 		const fixedChannels = fixChannelPositionsWithoutNewChannel(channels);
 		const mappedChannels = fixedChannels.map((channel) => this.App.cassandra.models.Channel.batching.insert(channel));
 		const mappedRoles = roles.map((role) => this.App.cassandra.models.Role.batching.insert(role));
-		const mappedPermissionOverrides = permissionOverrides.map((permissionOverride) => this.App.cassandra.models.PermissionOverride.batching.insert(permissionOverride));
+		const mappedPermissionOverrides = permissionOverrides.map((permissionOverride) =>
+			this.App.cassandra.models.PermissionOverride.batching.insert(permissionOverride),
+		);
 		const mappedMembers = members.map((member) => this.App.cassandra.models.GuildMember.batching.insert(member));
 
 		await Promise.all([
-			this.App.cassandra.mapper.batch(mappedChannels),
-			this.App.cassandra.mapper.batch(mappedRoles),
-			this.App.cassandra.mapper.batch(mappedPermissionOverrides),
-			this.App.cassandra.mapper.batch(mappedMembers),
+			mappedChannels.length > 0 ? this.App.cassandra.mapper.batch(mappedChannels) : null,
+			mappedRoles.length > 0 ? this.App.cassandra.mapper.batch(mappedRoles) : null,
+			mappedPermissionOverrides.length > 0 ? this.App.cassandra.mapper.batch(mappedPermissionOverrides) : null,
+			mappedMembers.length > 0 ? this.App.cassandra.mapper.batch(mappedMembers) : null,
 			this.App.cassandra.models.Guild.insert(guild),
 			this.App.cassandra.models.User.update({
 				userId: Encryption.encrypt(user.id),
-				guilds: [...Encryption.completeEncryption(user.guilds), Encryption.encrypt(guildId)],
+				guilds: Encryption.completeEncryption(user.guilds).concat(Encryption.encrypt(guildId)),
 			}),
 		]);
 
@@ -592,7 +627,9 @@ export default class FetchGuilds extends Route {
 					channel.permissionOverrides.map((id) => {
 						const found = permissionOverrides.find((p) => p.id === id);
 
-						if (!found) return [];
+						if (!found) {
+							return [];
+						}
 
 						return [
 							Encryption.decrypt(found.permissionId),
@@ -623,7 +660,15 @@ export default class FetchGuilds extends Route {
 
 		this.App.rabbitMQForwarder("guild.create", {
 			userId: user.id,
-			guild: finishedGuild
+			guild: finishedGuild,
+			member: {
+				userId: user.id,
+				nickname: null,
+				roles: [guildId],
+				joinedAt: new Date(),
+				flags: Constants.guildMemberFlags.Owner | Constants.guildMemberFlags.In,
+				timeouts: [],
+			},
 		});
 
 		this.App.rabbitMQForwarder("guildMember.add", {
@@ -636,10 +681,23 @@ export default class FetchGuilds extends Route {
 				joinedAt: new Date(),
 				flags: Constants.guildMemberFlags.Owner | Constants.guildMemberFlags.In,
 				timeouts: [],
-			}
+				owner: true,
+			},
 		});
 
 		return finishedGuild;
+	}
+
+	public sortChannels(channels: Infer<typeof postGuild>["channels"] = []) {
+		const parentlessChannels = channels
+			.filter((channel) => !channel.parentId)
+			.sort((a, b) => a.position! - b.position!);
+		const parentChannels = channels.filter((channel) => channel.parentId).sort((a, b) => a.position! - b.position!);
+
+		return parentlessChannels.flatMap((channel) => {
+			const children = parentChannels.filter((child) => child.parentId === channel.id);
+			return children.length ? [channel, ...children] : channel;
+		});
 	}
 
 	public canCreateGuild(flags: FlagFields, guildCount: number) {

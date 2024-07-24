@@ -1,0 +1,42 @@
+diff --git a/lib/encoder.js b/lib/encoder.js
+index 03e8eb3fb5a8334ccf886e60ec0d3af9602d3709..82aa189877e0c4726fc4d564a4b4e8eef0f4d552 100644
+--- a/lib/encoder.js
++++ b/lib/encoder.js
+@@ -421,6 +421,12 @@ function defineInstanceMembers() {
+       throw new TypeError('Expected Number, obtained ' + util.inspect(value));
+     }
+ 
++    // ? first we confirm its a double and not a int
++    // ? if its a int we run this.encodeInt(value) instead because this lib is dumb :3
++    if (Number.isInteger(value)) {
++      return this.encodeInt(value);
++    }
++
+     const buf = utils.allocBufferUnsafe(8);
+     buf.writeDoubleBE(value, 0);
+     return buf;
+@@ -541,6 +547,8 @@ function defineInstanceMembers() {
+       value = Long.fromNumber(value);
+     } else if (typeof value === 'string') {
+       value = Long.fromString(value);
++    } else if (typeof value === 'bigint') {
++      return this._encodeBigIntFromLong(String(value));
+     }
+ 
+     let buf = null;
+diff --git a/package.json b/package.json
+index cbc344031fa2f6513f37ec2dd1fcc4a0194034d8..6613a57880213ca0f3c474563e392e373b0b7f65 100644
+--- a/package.json
++++ b/package.json
+@@ -20,10 +20,9 @@
+   "license": "Apache-2.0",
+   "types": "./index.d.ts",
+   "dependencies": {
+-    "@types/long": "^4.0.0",
+     "@types/node": ">=8",
+     "adm-zip": "^0.5.3",
+-    "long": "^2.2.0"
++    "long": "^5.2.3"
+   },
+   "devDependencies": {
+     "chai": "4.2.0",

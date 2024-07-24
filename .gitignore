@@ -37,10 +37,6 @@ dtests/
 .pnp.*
 .yarn/
 
-# Cache
-.prettiercache
-.eslintcache
-
 # Old Stuff
 oldApiRoutes/
 old/
@@ -53,3 +49,8 @@ openSpecStorage/
 src/configs/*
 
 !src/configs/example.json
+
+!src/configs/scylladb
+
+src/migrate.ts
+src/fixtest.ts

@@ -15,7 +15,9 @@ import Route from "@/Utils/Classes/Routing/Route.ts";
 // ? Gateway payload for identify, I want to keep it the same as the @me route, so that way I can easily document it
 
 interface ProfileResponse {
-	connections: unknown[]; // TODO: Add connections (Discord, Twitter (X), Github, Steam, Spotify (Not sure if we can do this one), Reddit, Youtube, Twitch)
+	// TODO: Add connections (Discord, Twitter (X), Github, Steam, Spotify (Not sure if we can do this one), Reddit, Youtube, Twitch)
+	bio: string | null;
+	connections: unknown[];
 	mutualFriends: string[];
 	mutualGuilds: string[];
 }
@@ -35,9 +37,14 @@ export default class Profile extends Route {
 		}),
 	)
 	public async getProfile({ params, set, user }: CreateRoute<"/users/:userId/profile", any, [UserMiddlewareType]>) {
-		const fetchedUser = await this.App.cassandra.models.User.get({
-			userId: Encryption.encrypt(params.userId),
-		});
+		const fetchedUser = await this.App.cassandra.models.User.get(
+			{
+				userId: Encryption.encrypt(params.userId),
+			},
+			{
+				fields: ["guilds"],
+			},
+		);
 
 		if (!fetchedUser) {
 			const userNotFound = errorGen.InvalidUser();
@@ -54,14 +61,22 @@ export default class Profile extends Route {
 			return userNotFound.toJSON();
 		}
 
+		const settings = await this.App.cassandra.models.Settings.get(
+			{
+				userId: Encryption.encrypt(params.userId),
+			},
+			{
+				fields: ["bio"],
+			},
+		);
+
 		const mutualGuilds = user.guilds.filter((guild) => fetchedUser.guilds.includes(Encryption.encrypt(guild)));
 
-		const response: ProfileResponse = {
+		return {
 			connections: [],
 			mutualFriends: [],
 			mutualGuilds,
+			bio: settings?.bio ? Encryption.decrypt(settings.bio) : null,
 		};
-
-		return response;
 	}
 }

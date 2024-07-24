@@ -26,7 +26,8 @@
 				"DisableLogin",
 				"DisablePasswordReset",
 				"DisableRegistration",
-				"InviteBasedRegistration"
+				"InviteBasedRegistration",
+				"MulitSocketMode"
 			],
 			"type": "string"
 		},
@@ -212,7 +213,7 @@
 				"shortCode": {
 					"$ref": "#/definitions/ShortCode"
 				},
-				"user": {
+				"username": {
 					"type": "string"
 				}
 			},
@@ -271,16 +272,9 @@
 					},
 					"required": ["unAuthedTimeout", "closeTimeout", "heartbeat"]
 				}
-			}
-			,
+			},
 			"type": "object",
-			"required": [
-				"port",
-				"maxConnections",
-				"maxConnectionsPerMinute",
-				"maxConnectionsPerIp",
-				"intervals"
-			]
+			"required": ["port", "maxConnections", "maxConnectionsPerMinute", "maxConnectionsPerIp", "intervals"]
 		},
 		"RabbitMQ": {
 			"properties": {

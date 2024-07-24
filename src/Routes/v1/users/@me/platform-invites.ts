@@ -111,7 +111,6 @@ export default class PlatformInvites extends Route {
 
 		set.status = 204;
 
-		// eslint-disable-next-line no-useless-return, sonarjs/no-redundant-jump
 		return;
 	}
 
@@ -133,7 +132,9 @@ export default class PlatformInvites extends Route {
 		const error = errorGen.FailedToCreateInvite();
 
 		if (user.settings.allowedInvites <= 0) {
-			if (user.settings.allowedInvites < 0) this.App.logger.error("User has negative allowed invites");
+			if (user.settings.allowedInvites < 0) {
+				this.App.logger.error("User has negative allowed invites");
+			}
 
 			error.addError({
 				uses: {

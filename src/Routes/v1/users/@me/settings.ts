@@ -1,8 +1,9 @@
+import { presenceTypes, statusTypes } from "@/Constants.ts";
 import bodyValidator from "@/Middleware/BodyValidator.ts";
 import type { UserMiddlewareType } from "@/Middleware/User.ts";
 import userMiddleware from "@/Middleware/User.ts";
 import type { Infer } from "@/Types/BodyValidation.ts";
-import { array, number, snowflake, string } from "@/Types/BodyValidation.ts";
+import { enums, array, number, snowflake, string } from "@/Types/BodyValidation.ts";
 import type API from "@/Utils/Classes/API.ts";
 import Encryption from "@/Utils/Classes/Encryption.ts";
 import errorGen from "@/Utils/Classes/ErrorGen.ts";
@@ -15,8 +16,8 @@ import Route from "@/Utils/Classes/Routing/Route.ts";
 
 const patchSettings = {
 	customStatus: string().optional().nullable().max(128),
-	theme: string().optional().max(5).min(4), // dark, light, auto
-	language: string().optional().max(5).min(2), // en-US
+	theme: enums(["dark", "light", "system"]).optional(), // dark, light, auto
+	language: enums(["en-US"]).optional(), // en-US
 	guildOrder: array({
 		guildId: snowflake(),
 		position: number().min(0).max(100),
@@ -24,6 +25,8 @@ const patchSettings = {
 		.max(100)
 		.optional(),
 	bio: string().optional().max(300),
+	emojiPack: enums(["fluentui-emoji", "native", "noto-emoji", "twemoji"]).optional(),
+	navBarLocation: enums(["bottom", "left"]).optional(),
 };
 
 export default class UserSettings extends Route {
@@ -44,10 +47,6 @@ export default class UserSettings extends Route {
 		return user.settings;
 	}
 
-	public themes = ["dark", "light", "auto"];
-
-	public supportedLanugages = ["en-US"];
-
 	@Method("patch")
 	@Description("Update the current users settings")
 	@ContentTypes("application/json")
@@ -64,42 +63,30 @@ export default class UserSettings extends Route {
 	}: CreateRoute<"/@me/settings", Infer<typeof patchSettings>, [UserMiddlewareType]>) {
 		const failedToUpdateSettigns = errorGen.FailedToPatchUser();
 
-		const data: Partial<Infer<typeof patchSettings>> = {};
+		const data: Partial<Infer<typeof patchSettings> & { navLocation?: "bottom" | "left" }> = {};
 
 		if (body.theme) {
-			if (!this.themes.includes(body.theme)) {
-				failedToUpdateSettigns.addError({
-					theme: {
-						code: "InvalidTheme",
-						message: `The theme you provided was invalid, a valid theme is "${this.themes.join('", "')}"`,
-					},
-				});
-			}
-
 			data.theme = body.theme;
 		}
 
 		if (body.language) {
-			if (!this.supportedLanugages.includes(body.language)) {
-				failedToUpdateSettigns.addError({
-					language: {
-						code: "InvalidLanguage",
-						message: `The language you provided was invalid, a valid language is "${this.supportedLanugages.join(
-							'", "',
-						)}"`,
-					},
-				});
-			}
-
 			data.language = body.language;
 		}
 
-		if (body.customStatus) {
-			data.customStatus = Encryption.encrypt(body.customStatus);
+		if (body.customStatus !== undefined) {
+			data.customStatus = body.customStatus ? Encryption.encrypt(body.customStatus) : null;
 		}
 
 		if (body.bio) {
 			data.bio = Encryption.encrypt(body.bio);
+		}
+
+		if (body.emojiPack) {
+			data.emojiPack = body.emojiPack;
+		}
+
+		if (body.navBarLocation) {
+			data.navLocation = body.navBarLocation;
 		}
 
 		const fixedGuilds = body.guildOrder;
@@ -113,6 +100,13 @@ export default class UserSettings extends Route {
 							message: "The guild you provided was invalid, you are not in that guild",
 						},
 					});
+				} else if (guild.position < 0 || guild.position > user.guilds.length) {
+					failedToUpdateSettigns.addError({
+						[`guildOrder.${guild.guildId}`]: {
+							code: "InvalidPosition",
+							message: "The position you provided was invalid",
+						},
+					});
 				}
 			}
 
@@ -124,18 +118,63 @@ export default class UserSettings extends Route {
 			return failedToUpdateSettigns;
 		}
 
-		await this.App.cassandra.models.Settings.update({
-			userId: Encryption.encrypt(user.id),
-			...data,
-		});
+		if (Object.keys(data).length > 0) {
+			await this.App.cassandra.models.Settings.update({
+				userId: Encryption.encrypt(user.id),
+				...data,
+			});
+		}
+
+		if (body.customStatus !== undefined) {
+			const fetchedPresence = await this.App.cache.get(`user:${Encryption.encrypt(user.id)}`);
+			const parsedPresence = JSON.parse(
+				(fetchedPresence as string) ??
+					`[{ "sessionId": null, "since": null, "state": null, "type": ${presenceTypes.custom}, "status": ${statusTypes.offline} }]`,
+			) as { sessionId: string | null; since: number | null; state: string | null; status: number; type: number }[];
+
+			for (const presence of parsedPresence) {
+				if (presence.type === presenceTypes.custom) {
+					presence.state = body.customStatus;
+				}
+			}
+
+			const usr = await this.App.cassandra.models.User.get(
+				{
+					userId: Encryption.encrypt(user.id),
+				},
+				{
+					fields: ["avatar"],
+				},
+			);
+
+			for (const guild of user.guilds) {
+				this.App.rabbitMQForwarder("presence.update", {
+					user: {
+						id: user.id,
+						username: user.username,
+						avatar: usr!.avatar,
+						publicFlags: user.flagsUtil.PublicFlags.cleaned,
+						flags: user.flagsUtil.PrivateFlags.cleaned,
+					},
+					guildId: guild,
+					presences: parsedPresence,
+					guilds: user.guilds,
+				});
+			}
+
+			await this.App.cache.set(`user:${Encryption.encrypt(user.id)}`, JSON.stringify(parsedPresence));
+		}
 
 		return {
+			...user.settings,
 			bio: body.bio ?? user.settings.bio,
 			guildOrder: fixedGuilds ?? user.settings.guildOrder,
 			language: body.language ?? user.settings.language,
 			privacy: user.settings.privacy,
 			customStatus: body.customStatus ?? user.settings.customStatus,
 			theme: body.theme ?? user.settings.theme,
+			emojiPack: body.emojiPack ?? user.settings.emojiPack ?? "twemoji",
+			navBarLocation: body.navBarLocation ?? user.settings.navBarLocation ?? "bottom",
 		};
 	}
 }

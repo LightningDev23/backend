@@ -48,6 +48,7 @@ export interface Channel {
 export type ExpressMethodCap = "DELETE" | "GET" | "HEAD" | "OPTIONS" | "PATCH" | "POST" | "PUT";
 
 declare global {
+	// biome-ignore lint/style/noNamespace: <explanation>
 	namespace Express {
 		interface Request {
 			captcha: Turnstile;

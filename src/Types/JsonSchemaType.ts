@@ -6,7 +6,8 @@ export type Features =
 	| "DisableLogin"
 	| "DisablePasswordReset"
 	| "DisableRegistration"
-	| "InviteBasedRegistration";
+	| "InviteBasedRegistration"
+	| "MulitSocketMode"; // if there's multiple API's and WS's
 
 export interface MySchema {
 	encryption: Encryption;
@@ -33,7 +34,7 @@ export interface User {
 	port?: number;
 	secure?: boolean;
 	shortCode?: ShortCode;
-	user?: string;
+	username?: string;
 }
 export interface Redis {
 	db: number;
@@ -88,7 +89,7 @@ export interface Ws {
 		closeTimeout: Interval;
 		heartbeat: Interval;
 		unAuthedTimeout: Interval;
-	},
+	};
 	maxConnections: number | string;
 	maxConnectionsPerIp: number | string;
 	maxConnectionsPerMinute: number | string;

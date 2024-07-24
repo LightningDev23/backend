@@ -320,6 +320,7 @@ const relationshipFlags = {
 	FriendRequest: 1 << 2,
 	Friend: 1 << 3,
 	MutualFriend: 1 << 4,
+	Ignored: 1 << 5, // ? The difference between "Denied" and "Ignored" (frontend wise) is denying pretty much delete's the friend request, while ignoring still makes it seem like its pending on the other users side
 };
 
 const auditLogActions = {};

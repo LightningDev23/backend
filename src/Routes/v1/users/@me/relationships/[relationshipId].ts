@@ -21,6 +21,7 @@ const patchRelationshipBody = {
 		relationshipFlags.FriendRequest,
 		relationshipFlags.Friend,
 		relationshipFlags.None,
+		relationshipFlags.Ignored,
 	]).optional(),
 };
 
@@ -257,6 +258,33 @@ export default class RelationshipUser extends Route {
 								? relationshipFlags.None
 								: relationshipFlagFields.bits
 							: relationshipFlags.None,
+					};
+
+					await this.App.cassandra.models.Friend.update({
+						friendId: Encryption.encrypt(params.relationshipId),
+						primaryUserId: foundRelationship.primaryUserId,
+						secondaryUserId: foundRelationship.secondaryUserId,
+						...newFlags,
+					});
+
+					set.status = 204;
+
+					return;
+				}
+
+				case relationshipFlags.Ignored: {
+					// ? if we are ignoring them and they do not have a fq sent out we error out as we cannot ignore them
+
+					if (!relationshipFlagFields.has("FriendRequest")) {
+						set.status = 400;
+
+						return invalidFlags.toJSON();
+					}
+
+					// ? Now we just set the flags to ignored (they keep their fq)
+					const newFlags = {
+						primaryUserFlags: whoAreWe ? relationshipFlags.Ignored : relationshipFlagFields.bits,
+						secondaryUserFlags: whoAreWe ? relationshipFlagFields.bits : relationshipFlags.Ignored,
 					};
 
 					await this.App.cassandra.models.Friend.update({

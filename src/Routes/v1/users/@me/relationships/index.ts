@@ -5,6 +5,7 @@ import userMiddleware from "@/Middleware/User.ts";
 import type { Infer } from "@/Types/BodyValidation.ts";
 import { enums, snowflake, string } from "@/Types/BodyValidation.ts";
 import type API from "@/Utils/Classes/API.ts";
+import FlagFields from "@/Utils/Classes/BitFields/Flags.ts";
 import { FlagUtils } from "@/Utils/Classes/BitFields/NewFlags.ts";
 import Encryption from "@/Utils/Classes/Encryption.ts";
 import errorGen from "@/Utils/Classes/ErrorGen.ts";
@@ -123,7 +124,7 @@ export default class Relationships extends Route {
 					: decrypted.secondaryUserFlags === relationshipFlags.FriendRequest,
 				user: {
 					avatar: fetchedUser.avatar,
-					flags: fetchedUser.flags,
+					flags: FlagFields.cleanPrivateFlags(fetchedUser.flags),
 					globalNickname: fetchedUser.globalNickname,
 					publicFlags: fetchedUser.publicFlags,
 					tag: fetchedUser.tag,

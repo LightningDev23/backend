@@ -173,6 +173,21 @@
 				},
 				"workerId": {
 					"type": "number"
+				},
+				"phishing": {
+					"properties": {
+						"enabled": {
+							"type": "boolean"
+						},
+						"domainsPath": {
+							"type": "string"
+						},
+						"action": {
+							"enum": ["block", "report"],
+							"type": "string"
+						}
+					},
+					"type": "object"
 				}
 			},
 			"type": "object",
@@ -189,7 +204,8 @@
 				"sentry",
 				"strictRouting",
 				"turnstileSecret",
-				"workerId"
+				"workerId",
+				"phishing"
 			]
 		},
 		"ShortCode": {

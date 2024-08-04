@@ -9,7 +9,7 @@ import processArgs from "../ProcessArgs.ts";
 
 type Logtypes = "debug" | "error" | "fatal" | "importantDebug" | "info" | "timer" | "trace" | "verbose" | "warn";
 
-const args = processArgs(["debug", "no-verbose", "no-console", "super-debug"]);
+const args = processArgs(["debug", "noverbose", "no-console", "super-debug"]);
 
 class Logger {
 	private readonly logDirectory: string;
@@ -467,7 +467,7 @@ class Logger {
 	}
 
 	public verbose(...message: any[]) {
-		if (args.valid.includes("no-verbose")) {
+		if (args.valid.includes("noverbose")) {
 			return this;
 		}
 

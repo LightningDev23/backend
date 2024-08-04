@@ -5,7 +5,7 @@ import userMiddleware from "@/Middleware/User.ts";
 import type { Infer } from "@/Types/BodyValidation.ts";
 import { any, array, boolean, enums, number, object, snowflake, string } from "@/Types/BodyValidation.ts";
 import type API from "@/Utils/Classes/API.ts";
-import type FlagFields from "@/Utils/Classes/BitFields/Flags.ts";
+import FlagFields from "@/Utils/Classes/BitFields/Flags.ts";
 import Permissions from "@/Utils/Classes/BitFields/Permissions.ts";
 import Encryption from "@/Utils/Classes/Encryption.ts";
 import errorGen from "@/Utils/Classes/ErrorGen.ts";
@@ -20,12 +20,12 @@ import type Roles from "@/Utils/Cql/Types/Role.ts";
 import type { Channel, Guild, GuildMember, PermissionOverride } from "@/Utils/Cql/Types/index.ts";
 import { fixChannelPositionsWithoutNewChannel } from "@/Utils/Versioning/v1/FixChannelPositions.ts";
 import permissionOverrideType from "@/Utils/Versioning/v1/permissionOverrideType.ts";
-import FetchCreateMessages from "../channels/[channelId]/messages/index.ts";
+import type FetchCreateMessages from "../channels/[channelId]/messages/index.ts";
 import { guildsTable, type GuildTable } from "@/Utils/Cql/Tables/GuildTable.ts";
 import { usersTable } from "@/Utils/Cql/Tables/UserTable.ts";
 import { rolesTable, type RoleTable } from "@/Utils/Cql/Tables/RoleTable.ts";
 import type { ChannelTable } from "@/Utils/Cql/Tables/ChannelTable.ts";
-import type { PermissionsOverridesTable } from "@/Utils/Cql/Tables/PermissionsOverideTable.ts";
+import { permissionsOverridesTable, type PermissionsOverridesTable } from "@/Utils/Cql/Tables/PermissionsOverideTable.ts";
 
 const postGuild = {
 	name: string().max(Constants.settings.Max.GuildNameLength).min(2),
@@ -124,6 +124,7 @@ export interface finishedGuild {
 		permissions: [string, string][];
 		position: number;
 	}[];
+	memberCount?: number
 }
 
 export interface rawGuild {
@@ -155,6 +156,8 @@ export default class FetchGuilds extends Route {
 		const include: ("channels" | "owners" | "roles")[] = query.include
 			? (query.include.split(",") as ("channels" | "owners" | "roles")[])
 			: [];
+
+		this.App.logger.startTimer("Guild Fetching", true);
 
 		for (const guild of user.guilds) {
 			const fetchedGuild = await guildsTable.get(
@@ -202,7 +205,7 @@ export default class FetchGuilds extends Route {
 
 			for (const channel of raw.channels) {
 				for (const perm of channel.channel.permissionOverrides ?? []) {
-					const found = await this.App.cassandra.models.PermissionOverride.get({
+					const found = await permissionsOverridesTable.get({
 						id: perm, // ? already encrypted
 					});
 
@@ -214,7 +217,7 @@ export default class FetchGuilds extends Route {
 						continue;
 					}
 
-					channel.overrides.push(found);
+					channel.overrides.push(found as PermissionsOverridesTable);
 				}
 
 				if (!channel.overrides) {
@@ -224,6 +227,8 @@ export default class FetchGuilds extends Route {
 
 			rawFinishedGuild.push(raw);
 		}
+		
+		this.App.logger.stopTimer("Guild Fetching");
 
 		for (const guild of invalidGuildIds) {
 			const index = user.guilds.indexOf(guild);
@@ -240,8 +245,10 @@ export default class FetchGuilds extends Route {
 
 		const guilds: finishedGuild[] = [];
 
-		const messageFetcher = new FetchCreateMessages(this.App);
-
+		this.App.logger.startTimer("Guild Message Fetching", true);
+		
+		const messageFetcher = this.App.routeCache.get(this.App.router.match("/v1/channels/123/messages")!.filePath)?.routeClass as FetchCreateMessages;
+		
 		for (const rawGuild of rawFinishedGuild) {
 			const guild: Partial<finishedGuild> = {
 				name: Encryption.decrypt(rawGuild.guild.name),
@@ -278,7 +285,7 @@ export default class FetchGuilds extends Route {
 
 				guild.owner = {
 					avatar: fetchedUser.avatar ? Encryption.decrypt(fetchedUser.avatar) : null,
-					flags: fetchedUser.flags ?? "0",
+					flags: FlagFields.cleanPrivateFlags(fetchedUser.flags ?? "0"),
 					globalNickname: fetchedUser.globalNickname ? Encryption.decrypt(fetchedUser.globalNickname) : null,
 					id: Encryption.decrypt(fetchedUser.userId!),
 					publicFlags: fetchedUser.publicFlags ?? "0",
@@ -331,6 +338,8 @@ export default class FetchGuilds extends Route {
 
 			guilds.push(guild as finishedGuild);
 		}
+		
+		this.App.logger.stopTimer("Guild Message Fetching");
 
 		return guilds;
 	}

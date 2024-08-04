@@ -8,6 +8,7 @@ import type {
 	ConvertToActualType,
 	ConvertTypesToTypes,
 	ExtractTypesFromCreateTable,
+	NullifyStuff,
 	Options,
 	PublicGetReturnType,
 } from "./createTableTypes.ts";
@@ -19,6 +20,14 @@ const tableAndColumnNameRegex = /^[A-Z_a-z]\w*$/;
 
 type MergeUnions<A, B> = A | B;
 
+type PossibleType = ([string, string] | string)[]
+
+// 
+type Flatten<T> = T extends (infer U)[]
+  ? U extends unknown[]
+    ? Flatten<U>
+    : U
+  : T;
 class Table<T> {
 	readonly #_options: T;
 
@@ -40,15 +49,19 @@ class Table<T> {
 			? Options<Types, Columns, PrimaryKeys, IndexKeys>
 			: never;
 	}
+	
+	public get tableName() {
+		return this.snakeifyString(this.options.tableName)
+	}
 
 	private checker() {
 		if (!this.options.tableName || this.options.tableName.length === 0) {
 			throw new Error("Table name is required");
 		}
 
-		if (reservedNames.includes(this.options.tableName)) {
+		if (reservedNames.includes(this.tableName)) {
 			throw new Error(
-				`The table name ${this.options.tableName} is a reserved name in Cassandra, you are required to change it to something else, here are some suggestions: ${this.options.tableName}_`,
+				`The table name ${this.tableName} is a reserved name in Cassandra, you are required to change it to something else, here are some suggestions: ${this.tableName}_`,
 			);
 		}
 
@@ -79,9 +92,9 @@ class Table<T> {
 			);
 		}
 
-		if (!tableAndColumnNameRegex.test(this.options.tableName)) {
+		if (!tableAndColumnNameRegex.test(this.tableName)) {
 			throw new Error(
-				`The table name ${this.options.tableName} is invalid, it must match the regex ${tableAndColumnNameRegex}`,
+				`The table name ${this.tableName} is invalid, it must match the regex ${tableAndColumnNameRegex}`,
 			);
 		}
 
@@ -98,7 +111,7 @@ class Table<T> {
 		}
 
 		// @ts-expect-error -- unsure how to handle this correctly
-		Client.tables.set(this.options.tableName, this);
+		Client.tables.set(this.tableName, this);
 	}
 
 	public startBatching() {
@@ -129,7 +142,7 @@ class Table<T> {
 				return data;
 			}
 			App.staticLogger.debug(
-				`[${this.options.tableName}] Migrating data from version ${version} to ${version + 1} due to ${migration.changes}`,
+				`[${this.tableName}] Migrating data from version ${version} to ${version + 1} due to ${migration.changes}`,
 			);
 
 			const doWeHaveAllFields = Array.isArray(migration.fields)
@@ -142,7 +155,7 @@ class Table<T> {
 			
 			const primaryKeys = this.options.primaryKeys.flat()
 			
-			let hasAllPrimary = primaryKeys.every((key) => Object.keys(where).includes(key));
+			let hasAllPrimary = primaryKeys.every((key) => Object.entries(where).filter(([,v]) => v !== undefined).map(([k]) => k).includes(key));
 			
 			const keysToFetch = [];
 			
@@ -158,8 +171,15 @@ class Table<T> {
 					}
 				}
 				
+				// ? now we remove any keys that are not a primary key or is undefined
+				for (const key of Object.keys(where)) {
+					if (!primaryKeys.includes(key) || where[key] === undefined) {
+						delete where[key];
+					}
+				}
+				
 				// ? one last check to see if we have all the primary keys
-				hasAllPrimary = primaryKeys.every((key) => Object.keys(where).includes(key));
+				hasAllPrimary = primaryKeys.every((key) => Object.entries(where).filter(([,v]) => v !== undefined).map(([k]) => k).includes(key));
 			}
 			
 			if (!doWeHaveAllFields) {
@@ -175,7 +195,7 @@ class Table<T> {
 			}
 			
 			if (doWeHaveAllFields && hasAllPrimary) {
-				const migratedData = migration.migrate(Client.getInstance(), structuredClone(data), version) as Data;
+				const migratedData = await migration.migrate(Client.getInstance(), structuredClone(data), version) as Data;
 
 				// ? removes any non primary keys from the where object
 				for (const key of Object.keys(where)) {
@@ -188,7 +208,7 @@ class Table<T> {
 				if (Bun.deepEquals(migratedData, data)) {
 					// ? nothing changed, but we still want to update the version
 					const opts = {
-						query: `UPDATE ${this.options.tableName} SET ${this.snakeifyString(this.versionName)} = ? WHERE ${Object.keys(
+						query: `UPDATE ${this.tableName} SET ${this.snakeifyString(this.versionName)} = ? WHERE ${Object.keys(
 							where,
 						)
 							.map((key) => `${this.snakeifyString(key)} = ?`)
@@ -196,18 +216,20 @@ class Table<T> {
 						params: [version + 1, ...Object.values(where)],
 					};
 
-					const [, error] = await safePromise(Client.getInstance().connection.execute(opts.query, opts.params));
-
+					const [, error] = await safePromise(Client.getInstance().connection.execute(opts.query, opts.params, {
+						prepare: true
+					}));
+					
 					if (error) {
-						throw new Error(`[${this.options.tableName}] There was an error updating the data: ${error.message}`);
+						throw new Error(`[${this.tableName}] There was an error updating the data: ${error.message}`);
 					}
 
 					App.staticLogger.debug(
-						`[${this.options.tableName}] No changes were made to the data, but the version was updated to ${version + 1}`,
+						`[${this.tableName}] No changes were made to the data, but the version was updated to ${version + 1}`,
 					);
 				} else {
 					const opts = {
-						query: `UPDATE ${this.options.tableName} SET ${
+						query: `UPDATE ${this.tableName} SET ${
 							migration.fields === "*"
 								? Object.keys(migratedData as never)
 										.map((f) => `${this.snakeifyString(f)} = ?`)
@@ -230,18 +252,20 @@ class Table<T> {
 						],
 					};
 
-					const [, error] = await safePromise(Client.getInstance().connection.execute(opts.query, opts.params));
+					const [, error] = await safePromise(Client.getInstance().connection.execute(opts.query, opts.params, {
+						prepare: true
+					}));
 
 					if (error) {
-						throw new Error(`[${this.options.tableName}] There was an error updating the data: ${error.message}`);
+						throw new Error(`[${this.tableName}] There was an error updating the data: ${error.message}`);
 					}
 
-					App.staticLogger.debug(`[${this.options.tableName}] The data has been updated to version ${version + 1}`);
+					App.staticLogger.debug(`[${this.tableName}] The data has been updated to version ${version + 1}`);
 				}
 
-				// if version + 1 is less then the latest version, continue migrating
+				// ? if version + 1 is less then the latest version, continue migrating
 				if (version + 1 < this.version) {
-					return this.migrateData(migratedData, version + 1, where);
+					return await this.migrateData(migratedData, version + 1, where);
 				}
 
 				return migratedData;
@@ -250,7 +274,7 @@ class Table<T> {
 			// ? else rip we now got to fetch more fields :/
 
 			const opts = {
-				query: `SELECT ${migration.fields === "*" ? "*" : keysToFetch.map((f) => this.snakeifyString(f as string)).join(", ")} FROM ${this.options.tableName} WHERE ${Object.keys(
+				query: `SELECT ${migration.fields === "*" ? "*" : keysToFetch.map((f) => this.snakeifyString(f as string)).join(", ")} FROM ${this.tableName} WHERE ${Object.keys(
 					where,
 				)
 					.map((key) => `${this.snakeifyString(key)} = ?`)
@@ -258,10 +282,12 @@ class Table<T> {
 				params: Object.values(where),
 			};
 
-			const [fetchedData, error] = await safePromise(Client.getInstance().connection.execute(opts.query, opts.params));
-
+			const [fetchedData, error] = await safePromise(Client.getInstance().connection.execute(opts.query, opts.params, {
+				prepare: true
+			}));
+			
 			if (error) {
-				throw new Error(`[${this.options.tableName}] There was an error fetching the data: ${error.message}`);
+				throw new Error(`[${this.tableName}] There was an error fetching the data: ${error.message}`);
 			}
 
 			if (!fetchedData) {
@@ -280,7 +306,7 @@ class Table<T> {
 			const finishedData: Record<string, unknown> = {
 				...data
 			};
-
+			
 			for (const [key, value] of Object.entries(first)) {
 				const foundMappedType = mappedTypes.find((type) => type.key === key);
 
@@ -316,12 +342,12 @@ class Table<T> {
 				}
 			}
 			
-			const migratedData = migration.migrate(Client.getInstance(), structuredClone(finishedData), version) as Data;
+			const migratedData = await migration.migrate(Client.getInstance(), structuredClone(finishedData), version) as Data;
 
 			if (Bun.deepEquals(migratedData, finishedData)) {
 				// ? nothing changed, but we still want to update the version
 				const opts = {
-					query: `UPDATE ${this.options.tableName} SET ${this.snakeifyString(this.versionName)} = ? WHERE ${Object.keys(
+					query: `UPDATE ${this.tableName} SET ${this.snakeifyString(this.versionName)} = ? WHERE ${Object.keys(
 						where,
 					)
 						.map((key) => `${this.snakeifyString(key)} = ?`)
@@ -336,11 +362,11 @@ class Table<T> {
 				);
 
 				if (error) {
-					throw new Error(`[${this.options.tableName}] There was an error updating the data: ${error.message}`);
+					throw new Error(`[${this.tableName}] There was an error updating the data: ${error.message}`);
 				}
-
+				
 				App.staticLogger.debug(
-					`[${this.options.tableName}] No changes were made to the data, but the version was updated to ${version + 1}`,
+					`[${this.tableName}] No changes were made to the data, but the version was updated to ${version + 1}`,
 				);
 			} else {
 				const optMigration = Object.fromEntries(
@@ -348,7 +374,7 @@ class Table<T> {
 				);
 
 				const opts = {
-					query: `UPDATE ${this.options.tableName} SET ${
+					query: `UPDATE ${this.tableName} SET ${
 						migration.fields === "*"
 							? Object.keys(optMigration as never)
 									.map((f) => `${this.snakeifyString(f)} = ?`)
@@ -362,7 +388,7 @@ class Table<T> {
 						.join(" AND ")};`,
 					params: [...Object.values(optMigration), version + 1, ...Object.values(where)],
 				};
-
+				
 				const [, error] = await safePromise(
 					Client.getInstance().connection.execute(opts.query, opts.params, {
 						prepare: true,
@@ -370,15 +396,15 @@ class Table<T> {
 				);
 
 				if (error) {
-					throw new Error(`[${this.options.tableName}] There was an error updating the data: ${error.message}`);
+					throw new Error(`[${this.tableName}] There was an error updating the data: ${error.message}`);
 				}
 
-				App.staticLogger.debug(`[${this.options.tableName}] The data has been updated to version ${version + 1}`);
+				App.staticLogger.debug(`[${this.tableName}] The data has been updated to version ${version + 1}`);
 			}
 
 			// if version + 1 is less then the latest version, continue migrating
 			if (version + 1 < this.version) {
-				return this.migrateData(migratedData, version + 1, where);
+				return await this.migrateData(migratedData, version + 1, where);
 			}
 
 			return migratedData;
@@ -413,7 +439,7 @@ class Table<T> {
 			options.fields.length === Object.keys(this.options.columns).length
 		) {
 			App.staticLogger.warn(
-				`[${this.options.tableName}] You are fetching all fields, this is not recommended, please specify the fields you want to fetch`,
+				`[${this.tableName}] You are fetching all fields, this is not recommended, please specify the fields you want to fetch`,
 			);
 		}
 
@@ -436,12 +462,12 @@ class Table<T> {
 			// ? we filter out any empty strings (due to version name) and any duplicates
 			options.fields = Array.from(new Set(options.fields)).filter((f) => f !== "") as Fields;
 		}
-
+		
 		const opts: {
 			params: unknown[];
 			query: string;
 		} = {
-			query: `SELECT ${options.fields === "*" || !options.fields ? "*" : options.fields.map((f) => this.snakeifyString(f as string))?.join(", ")} FROM ${this.options.tableName} WHERE ${Object.keys(
+			query: `SELECT ${options.fields === "*" || !options.fields ? "*" : options.fields.map((f) => this.snakeifyString(f as string))?.join(", ")} FROM ${this.tableName} WHERE ${Object.keys(
 				filter,
 			)
 				.map((key) => `${this.snakeifyString(key)} = ?`)
@@ -454,7 +480,7 @@ class Table<T> {
 				return v;
 			}),
 		};
-
+		
 		const [data, error] = await safePromise(gotClient.execute(opts.query, opts.params, {
 			prepare: true
 		}));
@@ -462,7 +488,7 @@ class Table<T> {
 		if (error) {
 			// ? Note: this goes for all errors, the reason we re-throw them, is due to the STUPID damn nature of cassandra-driver
 			// ? It throw's error's yes, but the stack is lost, so we re-throw it to get the stack
-			throw new Error(`[${this.options.tableName}] There was an error fetching the data: ${error.message}`);
+			throw new Error(`[${this.tableName}] There was an error fetching the data: ${error.message}`);
 		}
 
 		if (!data) {
@@ -492,11 +518,11 @@ class Table<T> {
 		
 		for (const [key, value] of Object.entries(first)) {
 			const foundMappedType = mappedTypes.find((type) => type.key === key);
-
+			
 			if (!foundMappedType) {
 				continue;
 			}
-
+			
 			// ? If the value is a array but the returned value is not an array (/null) we make it an array, this is due to cassandra returning null if the value is empty
 			if (foundMappedType.value.toString().includes("list") && !value) {
 				finishedData[
@@ -518,10 +544,10 @@ class Table<T> {
 				>
 			] = this.recursiveConvert(value);
 		}
-
+		
 		if (this.versionName !== "") {
 			const version = first[this.versionName];
-
+			
 			if (version === undefined || version === null) {
 				finishedData = await this.migrateData(finishedData, 0, filter);
 			}
@@ -619,7 +645,7 @@ class Table<T> {
 		},
 	) {
 		if (Object.keys(update).length === 0) {
-			throw new Error(`[${this.options.tableName}] You are trying to update with no values, this is not allowed`);
+			throw new Error(`[${this.tableName}] You are trying to update with no values, this is not allowed`);
 		}
 
 		const gotClient = Client.getInstance();
@@ -629,7 +655,7 @@ class Table<T> {
 		}
 
 		const opts = {
-			query: `UPDATE ${this.options.tableName} SET ${Object.entries(update)
+			query: `UPDATE ${this.tableName} SET ${Object.entries(update)
 				.map(([key]) => `${this.snakeifyString(key)} = ?`)
 				.join(", ")}${options?.version ? `, ${this.versionName} = ${options.version}` : ""} WHERE ${Object.keys(filter)
 				.map((key) => `${this.snakeifyString(key)} = ?`)
@@ -642,10 +668,10 @@ class Table<T> {
 		}));
 
 		if (error) {
-			throw new Error(`[${this.options.tableName}] There was an error updating the data: ${error.message}`);
+			throw new Error(`[${this.tableName}] There was an error updating the data: ${error.message}`);
 		}
 
-		App.staticLogger.debug(`[${this.options.tableName}] The data has been updated`);
+		App.staticLogger.debug(`[${this.tableName}] The data has been updated`);
 	}
 
 	/**
@@ -654,10 +680,7 @@ class Table<T> {
 	// ? we can only delete via primary keys, we can get them from infering from the options
 	public async remove(
 		filter: {
-			// @ts-expect-error -- its fine
-			[key in T extends Options<infer _Columns, infer PrimaryKeys, infer _IndexKeys>
-				? PrimaryKeys
-				: never]: ConvertToActualType<this["options"]["columns"][key]>;
+			[key in Flatten<this["options"]["primaryKeys"]>]: ExtractTypesFromCreateTable<this["options"]>[key];
 		},
 	) {
 		await this.delete(filter);
@@ -665,10 +688,7 @@ class Table<T> {
 
 	public async delete(
 		filter: {
-			// @ts-expect-error -- its fine
-			[key in T extends Options<infer _Columns, infer PrimaryKeys, infer _IndexKeys>
-				? PrimaryKeys
-				: never]: ConvertToActualType<this["options"]["columns"][key]>;
+			[key in Flatten<this["options"]["primaryKeys"]>]: ExtractTypesFromCreateTable<this["options"]>[key];
 		},
 	) {
 		const gotClient = Client.getInstance();
@@ -678,7 +698,7 @@ class Table<T> {
 		}
 
 		const opts = {
-			query: `DELETE FROM ${this.options.tableName} WHERE ${Object.keys(filter)
+			query: `DELETE FROM ${this.tableName} WHERE ${Object.keys(filter)
 				.map((key) => `${this.snakeifyString(key)} = ?`)
 				.join(" AND ")};`,
 			params: Object.values(filter),
@@ -689,10 +709,10 @@ class Table<T> {
 		}));
 
 		if (error) {
-			throw new Error(`[${this.options.tableName}] There was an error deleting the data: ${error.message}`);
+			throw new Error(`[${this.tableName}] There was an error deleting the data: ${error.message}`);
 		}
 
-		App.staticLogger.debug(`[${this.options.tableName}] The data has been deleted`);
+		App.staticLogger.debug(`[${this.tableName}] The data has been deleted`);
 	}
 
 	public async create<Data extends Partial<ExtractTypesFromCreateTable<this["options"]>>>(
@@ -705,7 +725,7 @@ class Table<T> {
 		},
 	): Promise<Data> {
 		if (Object.keys(data).length === 0) {
-			throw new Error(`[${this.options.tableName}] You are trying to create with no values, this is not allowed`);
+			throw new Error(`[${this.tableName}] You are trying to create with no values, this is not allowed`);
 		}
 
 		const gotClient = Client.getInstance();
@@ -715,7 +735,7 @@ class Table<T> {
 		}
 
 		const opts = {
-			query: `INSERT INTO ${this.options.tableName} (${Object.keys(data)
+			query: `INSERT INTO ${this.tableName} (${Object.keys(data)
 				.map((key) => this.snakeifyString(key))
 				.join(", ")}, ${this.snakeifyString(this.versionName)}) VALUES (${Object.keys(data)
 				.map(() => "?")
@@ -728,10 +748,10 @@ class Table<T> {
 		}));
 
 		if (error) {
-			throw new Error(`[${this.options.tableName}] There was an error creating the data: ${error.message}`);
+			throw new Error(`[${this.tableName}] There was an error creating the data: ${error.message}`);
 		}
 
-		App.staticLogger.debug(`[${this.options.tableName}] The data has been created`);
+		App.staticLogger.debug(`[${this.tableName}] The data has been created`);
 
 		return data;
 	}
@@ -740,7 +760,7 @@ class Table<T> {
 	 * Just for historical purposes, this is just a link to the create function
 	 */
 	public async insert<Data extends Partial<ExtractTypesFromCreateTable<this["options"]>>>(
-		data: Data,
+		data: NullifyStuff<Data>,
 		options?: {
 			/**
 			 * If you want to set a specific version for the tbale, this is somewhat dangerous but if for whatever reason you want to sure
@@ -779,7 +799,7 @@ class Table<T> {
 			options.fields.length === Object.keys(this.options.columns).length
 		) {
 			App.staticLogger.warn(
-				`[${this.options.tableName}] You are fetching all fields, this is not recommended, please specify the fields you want to fetch`,
+				`[${this.tableName}] You are fetching all fields, this is not recommended, please specify the fields you want to fetch`,
 			);
 		}
 
@@ -807,7 +827,7 @@ class Table<T> {
 			params: unknown[];
 			query: string;
 		} = {
-			query: `SELECT ${options.fields === "*" || !options.fields ? "*" : options.fields.map((f) => this.snakeifyString(f as string))?.join(", ")} FROM ${this.options.tableName} WHERE ${Object.keys(
+			query: `SELECT ${options.fields === "*" || !options.fields ? "*" : options.fields.map((f) => this.snakeifyString(f as string))?.join(", ")} FROM ${this.tableName} WHERE ${Object.keys(
 				filter,
 			)
 				.map((key) => `${this.snakeifyString(key)} = ?`)
@@ -826,7 +846,7 @@ class Table<T> {
 		}));
 		
 		if (error) {
-			throw new Error(`[${this.options.tableName}] There was an error fetching the data: ${error.message}`);
+			throw new Error(`[${this.tableName}] There was an error fetching the data: ${error.message}`);
 		}
 		
 		if (!data) {
@@ -966,7 +986,7 @@ class Table<T> {
 	 */
 	public toCQLCommand() {
 		const table = [
-			`CREATE TABLE${this.options.ifNotExists ? " IF NOT EXISTS" : ""} ${this.options.keyspace ? `${this.options.keyspace}.` : ""}${this.snakeifyString(this.options.tableName)} (`,
+			`CREATE TABLE${this.options.ifNotExists ? " IF NOT EXISTS" : ""} ${this.options.keyspace ? `${this.options.keyspace}.` : ""}${this.tableName} (`,
 			this.columns.map((k) => `\t ${k}`).join(",\n"),
 			this.options.version === undefined ? "," : `,\t${this.snakeifyString(this.versionName)} int,`,
 			`\tPRIMARY KEY (${this.options.primaryKeys.map((key) => (Array.isArray(key) ? `(${key.map((k) => this.snakeifyString(k)).join(", ")})` : this.snakeifyString(key))).join(", ")})`,
@@ -989,7 +1009,7 @@ class Table<T> {
 		// ? we push a version index forcfully
 		if (this.options.version !== undefined) {
 			indexes.push(
-				`CREATE INDEX IF NOT EXISTS ${this.options.tableName}_inx_${this.snakeifyString(this.versionName)} ON ${this.options.tableName} (${this.versionName});`,
+				`CREATE INDEX IF NOT EXISTS ${this.tableName}_inx_${this.snakeifyString(this.versionName)} ON ${this.tableName} (${this.versionName});`,
 			);
 		}
 
@@ -1031,7 +1051,7 @@ class Table<T> {
 		return this.options.indexes.map((index) => {
 			const name = Array.isArray(index) ? index[0] : null;
 
-			return `CREATE INDEX IF NOT EXISTS ${name ? name : `${this.snakeifyString(this.options.tableName)}_inx_${index as unknown as string}`} ON ${this.snakeifyString(this.options.tableName)} (${Array.isArray(index) ? this.snakeifyString(index[1]) : this.snakeifyString(index)});`;
+			return `CREATE INDEX IF NOT EXISTS ${name ? name : `${this.tableName}_inx_${index as unknown as string}`} ON ${this.tableName} (${Array.isArray(index) ? this.snakeifyString(index[1]) : this.snakeifyString(index)});`;
 		});
 	}
 
@@ -1052,6 +1072,10 @@ class Table<T> {
 
 		if (value === null || value === undefined) {
 			return "";
+		}
+		
+		if (key === "clustering_order") {
+			return `CLUSTERING ${value}`;
 		}
 
 		switch (typeof value) {

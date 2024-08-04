@@ -16,6 +16,10 @@ class Finder<Data> {
     public toArray() {
         return this.data;
     }
+    
+    public get length() {
+        return this.data.length
+    }
 }
 
 export default Finder;

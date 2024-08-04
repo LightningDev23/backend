@@ -146,8 +146,24 @@ export default class ConfigManager {
 			}
 
 			if (result.valid) {
-				this.oldConfig = this.config ?? parsed;
-				this.config = parsed;
+				
+				// ? loops thru and replace all ${configDirectory} strings with the config directory
+				const configDirectory = this.configsPath;
+				
+				const replace = (obj: any) => {
+					for (const [key, value] of Object.entries(obj)) {
+						if (typeof value === "object" && value !== null) {
+							replace(value);
+						} else if (typeof value === "string") {
+							obj[key] = value.replaceAll("${configDirectory}", configDirectory);
+						}
+					}
+					
+					return obj;
+				};
+				
+				this.oldConfig = this.config ?? replace(parsed);
+				this.config = replace(parsed);
 			} else {
 				App.staticLogger.warn(
 					`Config file is invalid, please fix it before continuing (${this.args.watch ? "The file is being watched" : "Please restart the process once you fix the issue, or use --watch to automatically reload the config"})`,

@@ -17,6 +17,7 @@ import FileSystemRouter from "./FileSystemRouter.ts";
 import { IpUtils } from "./IpUtils.ts";
 import type { ContentTypes } from "./Routing/Route.ts";
 import RouteBuilder from "./Routing/Route.ts";
+import { isInternalRoutingRequest } from "@/Utils/threadMessages.ts";
 
 class API extends App {
 	private routeDirectory: string = join(import.meta.dirname, "../../Routes");
@@ -99,7 +100,7 @@ class API extends App {
 					return;
 				}
 
-				this.logger.info(`Re-loaded Route ${loaded.route}`);
+				this.logger.verbose(`Re-loaded Route ${loaded.route}`);
 			}
 		});
 
@@ -121,10 +122,25 @@ class API extends App {
 				}),
 			)
 			.use(serverTiming())
-			.onError(({ code, request, path, error }) => {
+			.onError(({ code, request, path, error, set }) => {
 				this.logger.error(`Error ${code} on route ${path} [${request.method}]`);
 
 				console.log(error);
+
+				if (code === "PARSE") {
+					const invalidBody = errorGen.InvalidContentType();
+
+					invalidBody.addError({
+						body: {
+							code: "InvalidBody",
+							message: "You provided invalid JSON in the body of your request",
+						},
+					});
+
+					set.status = 400;
+
+					return invalidBody.toJSON();
+				}
 
 				return "Internal Server Error :(";
 			});
@@ -138,7 +154,7 @@ class API extends App {
 				continue;
 			}
 
-			this.logger.info(`Loaded Route ${loaded.route}`);
+			this.logger.verbose(`Loaded Route ${loaded.route}`);
 		}
 
 		this.logger.info(`Loaded ${Object.keys(this.router.routes).length} routes`);
@@ -191,15 +207,13 @@ class API extends App {
 
 			this.logger.info(`Request to "${route.route}" [${request.method}]`);
 
-			const foundMethod = route.routeClass.__methods?.find(
-				(method) => method.method === request.method.toLowerCase(),
-			) ?? { name: "Request", method: "get" };
+			const foundMethod = route.routeClass.__methods?.find((method) => method.method === request.method.toLowerCase());
 
 			if (!foundMethod) {
 				const error = errorGen.MethodNotAllowed();
 
 				error.addError({
-					methodNotAllowed: {
+					method: {
 						code: "MethodNotAllowed",
 						message: `Method "${
 							request.method
@@ -345,7 +359,7 @@ class API extends App {
 			if (this.args.includes("debug")) {
 				this.logger.stopTimer(`[Request] ${path}`);
 			}
-			
+
 			return requested;
 		});
 
@@ -354,6 +368,14 @@ class API extends App {
 				this.logger.info(`Listening on port ${this.config.server.port}`);
 			} else {
 				postMessage({ type: "ready", data: { port: this.config.server.port } });
+			}
+		});
+
+		this.rabbitMQ.on("data", (data) => {
+			if (isInternalRoutingRequest(data)) {
+				this.handleRouting(data);
+
+				return;
 			}
 		});
 	}

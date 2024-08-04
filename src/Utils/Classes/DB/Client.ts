@@ -149,9 +149,8 @@ class Client extends EventEmitter {
 
 			const [, error] = await safePromise(this.connection.execute(cmd.table));
 
-			console.log(cmd.table);
-
 			if (error) {
+				console.log(cmd.table);
 				throw new Error(`[${table.snakeifyString(table.options.tableName)}] Failed to create table: ${error.message}`);
 			}
 
@@ -440,8 +439,6 @@ class Client extends EventEmitter {
 				App.staticLogger.info(`Added column ${found}`);
 			}
 		}
-		
-		
 
 		rl.close();
 	}

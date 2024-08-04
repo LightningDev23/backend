@@ -12,6 +12,10 @@ const handledWithOptions = (key: string, value: unknown) => {
 	if (value === null || value === undefined) {
 		return "";
 	}
+	
+	if (key === "clustering_order") {
+		return `CLUSTERING ${value}`;
+	}
 
 	switch (typeof value) {
 		case "bigint":

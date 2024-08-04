@@ -17,7 +17,7 @@ import { channelsTable } from "@/Utils/Cql/Tables/ChannelTable.ts";
 import { guildMembersTable } from "@/Utils/Cql/Tables/GuildMemberTable.ts";
 import { settingsTable } from "@/Utils/Cql/Tables/SettingsTable.ts";
 
-export default class AckingIDBAsed extends Route {
+export default class AckingIDBased extends Route {
 	public constructor(App: API) {
 		super(App);
 	}
@@ -78,9 +78,16 @@ export default class AckingIDBAsed extends Route {
 		);
 
 		if (!guildMember) {
-			set.status = 500;
+			set.status = 404;
 
-			return "Internal Server Error :(";
+			unknownChannel.addError({
+				channel: {
+					code: "UnknownChannel",
+					message: "The provided channel does not exist or you do not have access to it.",
+				},
+			});
+
+			return unknownChannel.toJSON();
 		}
 
 		const guildMemberFlags = new GuildMemberFlags(guildMember.flags ?? 0);
@@ -146,8 +153,6 @@ export default class AckingIDBAsed extends Route {
 			channelId: params.channelId,
 			messageId: lastAckedMessageId,
 		});
-
-		console.log(acks);
 
 		await guildMembersTable.update(
 			{

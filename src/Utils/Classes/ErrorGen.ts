@@ -1,4 +1,4 @@
-import { HTTPErrors } from "@kastelll/util";
+import HTTPErrors from "@/Utils/Classes/HTTPErrors.ts";
 
 const errorGen = {
 	/*
@@ -174,6 +174,24 @@ const errorGen = {
 	 */
 	RelationshipAlreadyExists: () => {
 		return new HTTPErrors(4_027);
+	},
+	/*
+	 * If the provided member does not exist
+	 */
+	UnknownMember: () => {
+		return new HTTPErrors(4_028);
+	},
+	/*
+	 * If the provided role does not exist
+	 */
+	UnknownRole: () => {
+		return new HTTPErrors(4_029);
+	},
+	/*
+	 * If the role is invalid
+	 */
+	InvalidRole: () => {
+		return new HTTPErrors(4_030);
 	},
 };
 

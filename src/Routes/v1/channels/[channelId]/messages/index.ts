@@ -22,6 +22,9 @@ import type { Message } from "@/Utils/Cql/Types/index.ts";
 import { fetchMentions } from "@/Utils/Versioning/v1/FetchMentions.ts";
 import PermissionHandler from "@/Utils/Versioning/v1/PermissionCheck.ts";
 import DeleteEditGetMessage from "./[messageId]/index.ts";
+import FlagFields from "@/Utils/Classes/BitFields/Flags.ts";
+import type { PreventInfiniteRecursion } from "@/Types/index.ts";
+import { CString, dlopen, FFIType, JSCallback, ptr, suffix, type Library } from "bun:ffi";
 
 const messageData = {
 	content: string().optional().max(Constants.settings.Max.MessageLength),
@@ -31,6 +34,17 @@ const messageData = {
 	replyingTo: snowflake().optional(),
 	allowedMentions: number().optional(),
 };
+
+type LibChecker = Library<{
+	check_message: {
+		args: [FFIType.cstring, FFIType.function];
+		returns: FFIType.cstring;
+	};
+	init_domains: {
+		args: FFIType.cstring[];
+		returns: FFIType.bool;
+	};
+}>;
 
 export interface ReturnMessage {
 	allowedMentions: number;
@@ -68,8 +82,94 @@ export interface ReturnMessage {
 }
 
 export default class FetchCreateMessages extends Route {
+	// ? Some people may not trust the pre-built lib files, in that case they can just not enable phishing, when its not enabled we don't even call this so we can be sure its present when we call it
+	public lib!: LibChecker;
+
 	public constructor(App: API) {
 		super(App);
+
+		if (App.config.server.phishing?.enabled) {
+			if (suffix === "dylib") {
+				throw new Error("Phishing check is not supported on MacOS. Please disable it.");
+			}
+
+			this.lib = dlopen(`./lib/domain_checker.${suffix}`, {
+				check_message: {
+					args: [FFIType.cstring, FFIType.function],
+					returns: FFIType.cstring,
+				},
+				init_domains: {
+					args: [FFIType.cstring],
+					returns: FFIType.bool,
+				},
+			});
+
+			const domain = this.App.config.server.phishing?.domainsPath!;
+			const str = new CString(ptr(Buffer.from(domain + "\0")));
+
+			this.lib.symbols.init_domains(str.ptr);
+		}
+	}
+
+	private testMessage(input: string): Promise<string> {
+		const fixedInput = Buffer.from(input);
+
+		return new Promise((resolve, reject) => {
+			const resolveAnywaysTimeout = setTimeout(() => {
+				this.App.logger.warn("Phishing check took too long, resolving anyways");
+
+				resolve(JSON.stringify({ domain: null, phishing: false }));
+			}, 100);
+
+			const callback = new JSCallback(
+				(result) => {
+					clearTimeout(resolveAnywaysTimeout);
+
+					resolve(new CString(result).toString());
+
+					callback.close();
+				},
+				{
+					returns: "void",
+					args: [FFIType.cstring],
+				},
+			);
+
+			try {
+				this.lib.symbols.check_message(ptr(fixedInput), callback);
+			} catch (error) {
+				reject(error);
+
+				callback.close();
+			}
+		});
+	}
+
+	public async checkMessage(message: string) {
+		if (!this.App.config.server.phishing?.enabled) {
+			return false;
+		}
+
+		// ? using regex check if message even includes a domain if not we can skip the check
+		if (!/(https?:\/\/[^\s]+)/.test(message)) {
+			return false;
+		}
+
+		this.App.logger.startTimer("Phishing check", true);
+
+		const checked = await this.testMessage(message + "\0");
+
+		this.App.logger.stopTimer("Phishing check");
+
+		const parsed = JSON.parse(checked.toString()) as { domain: string; phishing: boolean };
+
+		if (this.App.config.server.phishing?.action === "alert") {
+			this.App.logger.warn(`Phishing domain detected: ${parsed.domain}`);
+
+			return false; // ? since only alerting we don't want to block
+		}
+
+		return parsed.phishing;
 	}
 
 	@Method("get")
@@ -125,6 +225,22 @@ export default class FetchCreateMessages extends Route {
 
 			return "Internal Server Error :(";
 		} else {
+			if (!user.guilds.includes(Encryption.decrypt(channel.guildId!))) {
+				// ? This is so we don't got to query guild members :3
+				const invalidGuild = errorGen.UnknownGuild();
+
+				invalidGuild.addError({
+					guildId: {
+						code: "UnknownGuild",
+						message: "The provided guild does not exist, or you do not have access to it.",
+					},
+				});
+
+				set.status = 404;
+
+				return invalidGuild.toJSON();
+			}
+
 			const guildMember = await this.App.cassandra.models.GuildMember.get({
 				guildId: channel.guildId!,
 				userId: Encryption.encrypt(user.id),
@@ -132,9 +248,16 @@ export default class FetchCreateMessages extends Route {
 			});
 
 			if (!guildMember) {
-				set.status = 500;
+				unknownChannel.addError({
+					channel: {
+						code: "UnknownChannel",
+						message: "The provided channel does not exist or you do not have access to it.",
+					},
+				});
 
-				return "Internal Server Error :(";
+				set.status = 404;
+
+				return unknownChannel.toJSON();
 			}
 
 			const guildMemberFlags = new GuildMemberFlags(guildMember.flags);
@@ -150,6 +273,22 @@ export default class FetchCreateMessages extends Route {
 				});
 
 				return unknownChannel.toJSON();
+			}
+
+			// ? These are the possible text channels, if they aren't one of these they obv do not have messages you can fetch
+			if (!channelFlags.hasOneArray(["Dm", "GroupChat", "GuildNewMember", "GuildNews", "GuildRules", "GuildText"])) {
+				set.status = 403;
+
+				const invalidChannel = errorGen.InvalidField();
+
+				invalidChannel.addError({
+					channel: {
+						code: "InvalidChannel",
+						message: "The provided channel is not a text channel.",
+					},
+				});
+
+				return invalidChannel.toJSON();
 			}
 
 			const permissionOverrides = channel.permissionOverrides
@@ -251,7 +390,7 @@ export default class FetchCreateMessages extends Route {
 			newMessages.push(Encryption.completeDecryption(await this.parseMessage(message)));
 		}
 
-		return newMessages;
+		return newMessages as PreventInfiniteRecursion<ReturnMessage>[];
 	}
 
 	public async fetchMessage(channelId: string, messageId: string, bucket: string) {
@@ -368,7 +507,7 @@ export default class FetchCreateMessages extends Route {
 				tag: userData?.tag ?? "0000",
 				avatar: userData?.avatar ?? null,
 				publicFlags: userData?.publicFlags ?? Constants.publicFlags.GhostBadge,
-				flags: userData?.flags ?? Constants.privateFlags.Ghost,
+				flags: userData?.flags ? FlagFields.cleanPrivateFlags(userData?.flags) : Constants.privateFlags.Ghost,
 			},
 			content: message.content,
 			creationDate: new Date(this.App.snowflake.timeStamp(message.messageId.toString())).toISOString(),
@@ -430,6 +569,21 @@ export default class FetchCreateMessages extends Route {
 			return invalidContent.toJSON();
 		}
 
+		if (body.content && (await this.checkMessage(body.content))) {
+			set.status = 403;
+
+			const phishingMessage = errorGen.InvalidField();
+
+			phishingMessage.addError({
+				message: {
+					code: "PhishingDetected",
+					message: "Phishing content detected in message",
+				},
+			});
+
+			return phishingMessage.toJSON();
+		}
+
 		const channel = await this.App.cassandra.models.Channel.get({
 			channelId: Encryption.encrypt(params.channelId),
 		});
@@ -458,6 +612,21 @@ export default class FetchCreateMessages extends Route {
 
 			return "Internal Server Error :(";
 		} else {
+			if (!user.guilds.includes(Encryption.decrypt(channel.guildId!))) {
+				const invalidGuild = errorGen.UnknownGuild();
+
+				invalidGuild.addError({
+					guildId: {
+						code: "UnknownGuild",
+						message: "The provided guild does not exist, or you do not have access to it.",
+					},
+				});
+
+				set.status = 404;
+
+				return invalidGuild.toJSON();
+			}
+
 			const guildMember = await this.App.cassandra.models.GuildMember.get({
 				guildId: channel.guildId!,
 				userId: Encryption.encrypt(user.id),
@@ -490,6 +659,22 @@ export default class FetchCreateMessages extends Route {
 				});
 
 				return unknownChannel.toJSON();
+			}
+
+			// ? These are the possible text channels, if they aren't one of these they obv do not have messages you can fetch
+			if (!channelFlags.hasOneArray(["Dm", "GroupChat", "GuildNewMember", "GuildNews", "GuildRules", "GuildText"])) {
+				set.status = 403;
+
+				const invalidChannel = errorGen.InvalidField();
+
+				invalidChannel.addError({
+					channel: {
+						code: "InvalidChannel",
+						message: "The provided channel is not a text channel.",
+					},
+				});
+
+				return invalidChannel.toJSON();
 			}
 
 			const permissionOverrides = channel.permissionOverrides
@@ -728,6 +913,6 @@ export default class FetchCreateMessages extends Route {
 			message: Encryption.completeDecryption(message),
 		});
 
-		return Encryption.completeDecryption(message);
+		return Encryption.completeDecryption<PreventInfiniteRecursion<typeof message>>(message);
 	}
 }

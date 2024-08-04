@@ -62,6 +62,21 @@ export default class Typing extends Route {
 
 			return "Internal Server Error :(";
 		} else {
+			if (!user.guilds.includes(Encryption.decrypt(channel.guildId!))) {
+				const invalidGuild = errorGen.UnknownGuild();
+
+				invalidGuild.addError({
+					guildId: {
+						code: "UnknownGuild",
+						message: "The provided guild does not exist, or you do not have access to it.",
+					},
+				});
+
+				set.status = 404;
+
+				return invalidGuild.toJSON();
+			}
+
 			const guildMember = await this.App.cassandra.models.GuildMember.get({
 				guildId: channel.guildId!,
 				userId: Encryption.encrypt(user.id),
@@ -69,9 +84,16 @@ export default class Typing extends Route {
 			});
 
 			if (!guildMember) {
-				set.status = 500;
+				unknownChannel.addError({
+					channel: {
+						code: "UnknownChannel",
+						message: "The provided channel does not exist or you do not have access to it.",
+					},
+				});
 
-				return "Internal Server Error :(";
+				set.status = 404;
+
+				return unknownChannel.toJSON();
 			}
 
 			const guildMemberFlags = new GuildMemberFlags(guildMember.flags);

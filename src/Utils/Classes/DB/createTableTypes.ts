@@ -1,8 +1,7 @@
 import type Client from "./Client.ts";
 import type Table from "./Table.ts";
 
-type IsUnion<T, B = T> = T extends B ? ([B] extends [T] ? false : true) : never;
-type Check<T> = [T] extends [string] ? (string extends T ? false : IsUnion<T> extends true ? true : false) : false;
+type Check<T> = [T] extends [string] ? (string extends T ? false : true) : false;
 
 export type ColumnTypesRaw =
 	| BigIntConstructor

@@ -60,9 +60,23 @@ const project = new Project({
 const allowedMethods = ["get", "post", "put", "patch", "delete", "head", "options"];
 const typechecker = project.getTypeChecker();
 
-const serializeTypeToJson = (returnType: Type<ts.Type>): any => {
+const serializeTypeToJson = (returnType: Type<ts.Type>, loop?: number): any => {
+	if (loop && loop >= 200) {
+		return "MAX_LOOP_REACHED";
+	}
+
+	if (!loop) {
+		// biome-ignore lint/style/noParameterAssign: Its fine
+		loop = 0;
+	}
+
 	if (returnType.getFlags() & TypeFlags.Object && !returnType.isArray() && !returnType.isTuple()) {
 		const obj: Record<string, unknown> = {};
+
+		// ? if its a "date" return "Date"
+		if (returnType.getText() === "Date") {
+			return "Date";
+		}
 
 		for (const prop of returnType.getProperties()) {
 			if (!prop.getValueDeclaration()) {
@@ -71,6 +85,8 @@ const serializeTypeToJson = (returnType: Type<ts.Type>): any => {
 
 			obj[prop.getName()] = serializeTypeToJson(
 				typechecker.getTypeOfSymbolAtLocation(prop, prop.getValueDeclaration()!),
+				// biome-ignore lint/style/noParameterAssign: Its fine
+				++loop,
 			);
 		}
 
@@ -78,11 +94,13 @@ const serializeTypeToJson = (returnType: Type<ts.Type>): any => {
 	} else if (returnType.getFlags() & TypeFlags.Union) {
 		const types = returnType.getUnionTypes();
 
-		return types.map((type) => serializeTypeToJson(type));
+		// biome-ignore lint/style/noParameterAssign: Its fine
+		return types.map((type) => serializeTypeToJson(type, ++loop!));
 	} else if (returnType.getFlags() & TypeFlags.Intersection) {
 		const types = returnType.getIntersectionTypes();
 
-		return types.map((type) => serializeTypeToJson(type));
+		// biome-ignore lint/style/noParameterAssign: Its fine
+		return types.map((type) => serializeTypeToJson(type, ++loop!));
 	} else if (returnType.getFlags() & TypeFlags.String) {
 		return "string";
 	} else if (returnType.getFlags() & TypeFlags.Number) {
@@ -107,14 +125,16 @@ const serializeTypeToJson = (returnType: Type<ts.Type>): any => {
 		const typeArgs = returnType.getTypeArguments();
 
 		if (typeArgs.length === 1) {
-			return [serializeTypeToJson(typeArgs[0]!)];
+			// biome-ignore lint/style/noParameterAssign: Its fine
+			return [serializeTypeToJson(typeArgs[0]!, ++loop!)];
 		}
 
 		return [];
 	} else if (returnType.getFlags() & TypeFlags.Object && returnType.isTuple()) {
 		const typeArgs = returnType.getTypeArguments();
 
-		return typeArgs.map((type) => serializeTypeToJson(type));
+		// biome-ignore lint/style/noParameterAssign: Its fine
+		return typeArgs.map((type) => serializeTypeToJson(type, ++loop!));
 	} else if (returnType.getFlags() & TypeFlags.BooleanLiteral) {
 		return returnType.getText();
 	} else if (returnType.getFlags() & TypeFlags.StringLiteral) {

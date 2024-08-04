@@ -77,6 +77,11 @@ export interface Server {
 	strictRouting: boolean;
 	turnstileSecret: string;
 	workerId: number;
+	phishing?: {
+		enabled: boolean;
+		domainsPath: string;
+		action: "block" | "alert";
+	};
 }
 
 interface Interval {

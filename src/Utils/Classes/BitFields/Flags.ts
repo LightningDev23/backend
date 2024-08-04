@@ -18,6 +18,10 @@ class FlagFields {
 		return this.PrivateFlags.clean(publicPrivateFlags);
 	}
 
+	public static cleanPrivateFlags(flags: string | bigint | number) {
+		return String(new FlagUtilsBInt(flags, privateFlags).clean(publicPrivateFlags));
+	}
+
 	public has(bit: bigint | number | keyof typeof privateFlags | keyof typeof publicFlags) {
 		return (
 			this.PrivateFlags.has(bit as keyof typeof privateFlags) || this.PublicFlags.has(bit as keyof typeof publicFlags)

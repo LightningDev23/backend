@@ -13,6 +13,10 @@ const handledWithOptions = (key: string, value: unknown) => {
 		return "";
 	}
 
+	if (key === "clustering_order") {
+		return `CLUSTERING ${value}`;
+	}
+
 	switch (typeof value) {
 		case "bigint":
 		case "number":

@@ -3,7 +3,7 @@ import { CacheManager } from "@kastelll/util";
 import * as Sentry from "@sentry/bun";
 import { type SimpleGit, simpleGit } from "simple-git";
 import type { MySchema } from "@/Types/JsonSchemaType.ts";
-import Constants, { relative, statusTypes } from "../../Constants.ts";
+import Constants, { relative, statusTypes } from "@/Constants.ts";
 import processArgs from "../ProcessArgs.ts";
 import ConfigManager from "./ConfigManager.ts";
 import Connection from "./Connection.ts";
@@ -15,6 +15,7 @@ import type { GetChannelTypes, channels } from "./Shared/RabbitMQ.ts";
 import Snowflake from "./Snowflake.ts";
 import SystemInfo from "./SystemInfo.ts";
 import Client from "./DB/Client.ts";
+import RabbitMQ from "./Shared/RabbitMQ.ts";
 
 type GitType = "Added" | "Copied" | "Deleted" | "Ignored" | "Modified" | "None" | "Renamed" | "Unmerged" | "Untracked";
 
@@ -83,6 +84,8 @@ class App {
 		this.logger.who = who;
 	}
 
+	public rabbitMQ!: RabbitMQ;
+
 	public logo() {
 		this.logger.hex("#ca8911")(
 			`\n██╗  ██╗ █████╗ ███████╗████████╗███████╗██╗     \n██║ ██╔╝██╔══██╗██╔════╝╚══██╔══╝██╔════╝██║     \n█████╔╝ ███████║███████╗   ██║   █████╗  ██║     \n██╔═██╗ ██╔══██║╚════██║   ██║   ██╔══╝  ██║     \n██║  ██╗██║  ██║███████║   ██║   ███████╗███████╗\n╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝   ╚═╝   ╚══════╝╚══════╝\nA Chatting Application\nRunning version ${
@@ -122,7 +125,7 @@ class App {
 			this.config.scyllaDB.networkTopologyStrategy,
 			this.config.scyllaDB.durableWrites,
 		);
-		
+
 		await Client.getInstance().connect({
 			keyspace: this.config.scyllaDB.keyspace,
 			nodes: this.config.scyllaDB.nodes,
@@ -130,9 +133,9 @@ class App {
 			username: this.config.scyllaDB.username,
 			db: {
 				durableWrites: this.config.scyllaDB.durableWrites,
-				networkTopologyStrategy: this.config.scyllaDB.networkTopologyStrategy
-			}
-		})
+				networkTopologyStrategy: this.config.scyllaDB.networkTopologyStrategy,
+			},
+		});
 
 		this.cache.on("Connected", () => this.logger.info("Connected to Redis"));
 		this.cache.on("Error", (err) => {
@@ -149,10 +152,14 @@ class App {
 			process.exit(1);
 		});
 
+		this.rabbitMQ = new RabbitMQ(this.config);
+
+		this.logger.info("Connecting to Redis");
+		this.logger.info("Connecting to RabbitMQ");
 		this.logger.info("Connecting to ScyllaDB");
 		this.logger.warn("IT IS NOT FROZEN, ScyllaDB may take a while to connect");
 
-		await Promise.all([this.cassandra.connect(), this.cache.connect()]);
+		await Promise.all([this.cassandra.connect(), this.cache.connect(), this.rabbitMQ.init()]);
 
 		this.logger.info("Creating ScyllaDB Tables.. This may take a while..");
 		this.logger.warn("IT IS NOT FROZEN, ScyllaDB may take a while to create the tables");
@@ -164,6 +171,9 @@ class App {
 		} else {
 			this.logger.error("This shouldn't happen, please report this");
 		}
+
+		this.logger.info("Connected to RabbitMQ");
+		this.logger.info("Connected to Redis");
 	}
 
 	public checkObjectForBlacklistedFields(object: unknown, blacklistedFields: string[]): boolean {
@@ -237,15 +247,15 @@ class App {
 			`${this.clean ? "" : "Changed Files:"}`,
 		];
 
-		for (const file of App.gitFiles) {
-			// if the directory is "node_modules", ".bun", ".git", ".yarn" we want to ignore it
+		// for (const file of App.gitFiles) {
+		// 	// if the directory is "node_modules", ".bun", ".git", ".yarn" we want to ignore it
 
-			if (["node_modules", ".bun", ".git", ".yarn"].includes(file.filePath.split("/")[0] ?? "")) {
-				continue;
-			}
+		// 	if (["node_modules", ".bun", ".git", ".yarn"].includes(file.filePath.split("/")[0] ?? "")) {
+		// 		continue;
+		// 	}
 
-			strings.push(`${file.type}: ${file.filePath}`);
-		}
+		// 	strings.push(`${file.type}: ${file.filePath}`);
+		// }
 
 		strings.push("=".repeat(40));
 
@@ -329,14 +339,7 @@ class App {
 	}
 
 	public rabbitMQForwarder(topic: GetChannelTypes<typeof channels>, data: unknown, raw = false) {
-		postMessage({
-			type: "rabbitMQ",
-			data: {
-				topic,
-				data,
-				raw,
-			},
-		});
+		this.rabbitMQ.send(topic, data, raw);
 	}
 
 	/**

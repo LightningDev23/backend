@@ -66,11 +66,24 @@ export default class FetchPatch extends Route {
 		query,
 		set,
 	}: CreateRoute<"/@me", any, [UserMiddlewareType], any, { include?: string }>) {
-		const fetchedUser = await usersTable.get({
-			userId: Encryption.encrypt(user.id),
-		}, {
-			fields: ["flags", "publicFlags", "userId", "email", "username", "globalNickname", "tag", "avatar", "phoneNumber"]
-		});
+		const fetchedUser = await usersTable.get(
+			{
+				userId: Encryption.encrypt(user.id),
+			},
+			{
+				fields: [
+					"flags",
+					"publicFlags",
+					"userId",
+					"email",
+					"username",
+					"globalNickname",
+					"tag",
+					"avatar",
+					"phoneNumber",
+				],
+			},
+		);
 
 		if (!fetchedUser) {
 			// ! Shouldn't happen, but just so we can satisfy typescript

@@ -13,7 +13,7 @@ const channels = {
 	channel: ["create", "delete", "update", "test"],
 	user: ["update"],
 	presence: ["update"],
-	message: ["create", "delete", "update", "reported", "typing"],
+	message: ["create", "delete", "update", "reported", "typing", "ack"],
 	guild: ["create", "delete", "update"],
 	invite: ["create", "delete", "update"],
 	role: ["create", "delete", "update"],
@@ -132,7 +132,8 @@ class RabbitMQ {
 	}
 
 	private get url() {
-		return `amqp://${this.config.rabbitMQ.host}:${this.config.rabbitMQ.port}`;
+		// return `amqp://${this.config.rabbitMQ.host}:${this.config.rabbitMQ.port}`;
+		return `amqp://${this.config.rabbitMQ.username}:${this.config.rabbitMQ.password}@${this.config.rabbitMQ.host}${this.config.rabbitMQ.port ? `:${this.config.rabbitMQ.port}` : ""}`;
 	}
 
 	/**

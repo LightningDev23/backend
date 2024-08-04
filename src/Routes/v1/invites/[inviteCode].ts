@@ -5,7 +5,7 @@ import Constants from "@/Constants.ts";
 import type { UserMiddlewareType } from "@/Middleware/User.ts";
 import userMiddleware from "@/Middleware/User.ts";
 import type API from "@/Utils/Classes/API.ts";
-import type FlagFields from "@/Utils/Classes/BitFields/Flags.ts";
+import FlagFields from "@/Utils/Classes/BitFields/Flags.ts";
 import GuildMemberFlags from "@/Utils/Classes/BitFields/GuildMember.ts";
 import Encryption from "@/Utils/Classes/Encryption.ts";
 import errorGen from "@/Utils/Classes/ErrorGen.ts";
@@ -15,9 +15,13 @@ import Method from "@/Utils/Classes/Routing/Decorators/Method.ts";
 import Middleware from "@/Utils/Classes/Routing/Decorators/Middleware.ts";
 import type { CreateRoute } from "@/Utils/Classes/Routing/Route.ts";
 import Route from "@/Utils/Classes/Routing/Route.ts";
-import type GuildMembers from "@/Utils/Cql/Types/GuildMember.ts";
-import FetchEditGuild from "../guilds/[guildId]/index.ts";
 import type { finishedGuild } from "../guilds/index.ts";
+import { guildsTable } from "@/Utils/Cql/Tables/GuildTable.ts";
+import { channelsTable } from "@/Utils/Cql/Tables/ChannelTable.ts";
+import { usersTable } from "@/Utils/Cql/Tables/UserTable.ts";
+import { invitesTable } from "@/Utils/Cql/Tables/InviteTable.ts";
+import { guildMembersTable, type GuildMemberTable } from "@/Utils/Cql/Tables/GuildMemberTable.ts";
+import type { NullifyStuff } from "@/Utils/Classes/DB/createTableTypes.ts";
 
 export default class FetchJoinInvite extends Route {
 	public randomKey = generateKeySync("aes", { length: 256 });
@@ -42,7 +46,7 @@ export default class FetchJoinInvite extends Route {
 			return "Internal Server Error :("; // ? its a user, not the server
 		}
 
-		const inviteExists = await this.App.cassandra.models.Invite.get({
+		const inviteExists = await invitesTable.get({
 			code: Encryption.encrypt(params.inviteCode),
 		});
 
@@ -71,14 +75,20 @@ export default class FetchJoinInvite extends Route {
 
 			set.status = 404;
 
-			await this.App.cassandra.models.Invite.remove({
+			await invitesTable.remove({
 				code: Encryption.encrypt(params.inviteCode),
+				guildId: inviteExists.guildId!,
 			});
 
 			return invalidInvite.toJSON();
 		}
 
-		if (inviteExists.maxUses !== 0 && inviteExists.uses >= inviteExists.maxUses) {
+		if (
+			inviteExists.maxUses &&
+			inviteExists.uses &&
+			inviteExists.maxUses !== 0 &&
+			inviteExists.uses >= inviteExists.maxUses
+		) {
 			invalidInvite.addError({
 				invite: {
 					code: "InvalidInvite",
@@ -88,33 +98,52 @@ export default class FetchJoinInvite extends Route {
 
 			set.status = 404;
 
-			await this.App.cassandra.models.Invite.remove({
+			await invitesTable.remove({
 				code: Encryption.encrypt(params.inviteCode),
+				guildId: inviteExists.guildId!,
 			});
 
 			return invalidInvite.toJSON();
 		}
 
-		const fetchedGuild = (await new FetchEditGuild(this.App).getGuild({
-			// @ts-expect-error -- This is fine
-			user: {
-				guilds: [Encryption.decrypt(inviteExists.guildId)],
+		const fetchedGuild = await guildsTable.get(
+			{
+				guildId: inviteExists.guildId!,
 			},
-			query: {
-				include: "channels,roles",
+			{
+				fields: ["members", "ownerId", "name", "icon", "features"],
 			},
-			params: {
-				guildId: Encryption.decrypt(inviteExists.guildId),
-			},
-			set,
-		})) as finishedGuild;
+		);
 
-		if (set.status !== 200) {
-			return fetchedGuild;
+		if (!fetchedGuild) {
+			invalidInvite.addError({
+				invite: {
+					code: "InvalidInvite",
+					message: "The invite code is invalid or has expired.",
+				},
+			});
+
+			set.status = 404;
+
+			return invalidInvite.toJSON();
 		}
 
-		const foundChannel = fetchedGuild.channels?.find(
-			(channel) => channel.id === Encryption.decrypt(inviteExists.channelId),
+		const foundChannel = await channelsTable.get(
+			{
+				channelId: inviteExists.channelId!,
+			},
+			{
+				fields: ["name", "type", "description"],
+			},
+		);
+
+		const creator = await usersTable.get(
+			{
+				userId: inviteExists.creatorId!,
+			},
+			{
+				fields: ["avatar", "globalNickname", "publicFlags", "tag", "userId", "username", "flags"],
+			},
 		);
 
 		return Encryption.completeDecryption({
@@ -128,6 +157,7 @@ export default class FetchJoinInvite extends Route {
 						icon: fetchedGuild.icon,
 						ownerId: fetchedGuild.ownerId,
 						features: fetchedGuild.features ?? [],
+						memberCount: fetchedGuild.members,
 					},
 			channel: {
 				id: inviteExists.channelId,
@@ -135,6 +165,17 @@ export default class FetchJoinInvite extends Route {
 				type: foundChannel?.type,
 				description: foundChannel?.description,
 			},
+			creator: creator
+				? {
+						id: creator.userId,
+						avatar: creator.avatar,
+						globalNickname: creator.globalNickname,
+						username: creator.username,
+						tag: creator.tag,
+						publicFlags: creator.publicFlags,
+						flags: FlagFields.cleanPrivateFlags(creator.flags ?? "0"),
+					}
+				: null,
 			uses: inviteExists.uses,
 			maxUses: inviteExists.maxUses,
 			expiresAt: inviteExists.expires,
@@ -168,7 +209,7 @@ export default class FetchJoinInvite extends Route {
 			return maxGuild.toJSON();
 		}
 
-		const inviteExists = await this.App.cassandra.models.Invite.get({
+		const inviteExists = await invitesTable.get({
 			code: Encryption.encrypt(params.inviteCode),
 		});
 
@@ -197,14 +238,20 @@ export default class FetchJoinInvite extends Route {
 
 			set.status = 404;
 
-			await this.App.cassandra.models.Invite.remove({
+			await invitesTable.remove({
 				code: Encryption.encrypt(params.inviteCode),
+				guildId: inviteExists.guildId!,
 			});
 
 			return invalidInvite.toJSON();
 		}
 
-		if (inviteExists.maxUses !== 0 && inviteExists.uses >= inviteExists.maxUses) {
+		if (
+			inviteExists.maxUses &&
+			inviteExists.uses &&
+			inviteExists.maxUses !== 0 &&
+			inviteExists.uses >= inviteExists.maxUses
+		) {
 			invalidInvite.addError({
 				invite: {
 					code: "InvalidInvite",
@@ -214,28 +261,28 @@ export default class FetchJoinInvite extends Route {
 
 			set.status = 404;
 
-			await this.App.cassandra.models.Invite.remove({
+			await invitesTable.remove({
 				code: Encryption.encrypt(params.inviteCode),
-				guildId: inviteExists.guildId,
+				guildId: inviteExists.guildId!,
 			});
 
 			return invalidInvite.toJSON();
 		}
 
 		const member =
-			(await this.App.cassandra.models.GuildMember.get({
+			(await guildMembersTable.get({
 				userId: Encryption.encrypt(user.id),
-				guildId: inviteExists.guildId,
+				guildId: inviteExists.guildId!,
 				left: false,
 			})) ??
-			(await this.App.cassandra.models.GuildMember.get({
+			(await guildMembersTable.get({
 				userId: Encryption.encrypt(user.id),
-				guildId: inviteExists.guildId,
+				guildId: inviteExists.guildId!,
 				left: true,
 			}));
 
 		if (member) {
-			const memberFlags = new GuildMemberFlags(member.flags);
+			const memberFlags = new GuildMemberFlags(member.flags ?? 0);
 
 			if (memberFlags.has("Banned")) {
 				const banned = errorGen.InvalidInvite();
@@ -268,41 +315,48 @@ export default class FetchJoinInvite extends Route {
 			}
 
 			if (memberFlags.hasOneArray(["Left", "Kicked"])) {
-				await this.App.cassandra.models.GuildMember.remove({
-					// ? they ar joining back, remove it since left is a primary key
-					userId: user.id,
-					guildId: inviteExists.guildId,
+				await guildMembersTable.remove({
+					guildId: inviteExists.guildId!,
 					left: true,
-					guildMemberId: member.guildMemberId,
+					guildMemberId: member.guildMemberId!,
 				});
 			}
 		}
 
-		const newMember: GuildMembers = {
+		const newMember: NullifyStuff<GuildMemberTable> = {
 			flags: Constants.guildMemberFlags.In,
-			guildId: inviteExists.guildId,
-			guildMemberId: this.App.snowflake.generate(),
+			guildId: inviteExists.guildId!,
+			guildMemberId: BigInt(this.App.snowflake.generate()),
 			joinedAt: new Date(),
 			nickname: null,
-			roles: [inviteExists.guildId],
+			roles: [inviteExists.guildId!],
 			timeouts: [],
 			userId: Encryption.encrypt(user.id),
 			channelAcks: [],
 			left: false,
+			timeoutUntil: null,
 		};
 
-		await this.App.cassandra.models.GuildMember.insert(newMember);
+		await guildMembersTable.insert(newMember);
 
-		await this.App.cassandra.models.Invite.update({
-			code: Encryption.encrypt(params.inviteCode),
-			uses: inviteExists.uses + 1,
-			guildId: inviteExists.guildId,
-		});
+		await invitesTable.update(
+			{
+				code: Encryption.encrypt(params.inviteCode),
+				guildId: inviteExists.guildId!,
+			},
+			{
+				uses: (inviteExists.uses ?? 0) + 1,
+			},
+		);
 
-		await this.App.cassandra.models.User.update({
-			userId: Encryption.encrypt(user.id),
-			guilds: Encryption.completeEncryption(user.guilds).concat(inviteExists.guildId),
-		});
+		await usersTable.update(
+			{
+				userId: Encryption.encrypt(user.id),
+			},
+			{
+				guilds: Encryption.completeEncryption(user.guilds).concat(inviteExists.guildId!),
+			},
+		);
 
 		// @ts-expect-error -- This is fine
 		const fetchedInvite = await this.getInviteCode({
@@ -323,7 +377,7 @@ export default class FetchJoinInvite extends Route {
 
 		this.App.rabbitMQForwarder("guildMember.add", {
 			userId: user.id,
-			guildId: Encryption.decrypt(inviteExists.guildId),
+			guildId: Encryption.decrypt(inviteExists.guildId!),
 			member: Encryption.completeDecryption({
 				...newMember,
 				owner: false,
@@ -331,7 +385,10 @@ export default class FetchJoinInvite extends Route {
 		});
 
 		const first100Members = (
-			await this.App.cassandra.models.GuildMember.find({ guildId: inviteExists.guildId, left: false }, { limit: 100 })
+			await guildMembersTable.find(
+				{ guildId: inviteExists.guildId!, left: false },
+				{ limit: 100, fields: ["userId", "nickname", "roles", "joinedAt"] },
+			)
 		).toArray();
 
 		const finishedGuild = (fetchedInvite as { guild: finishedGuild }).guild;
@@ -339,8 +396,8 @@ export default class FetchJoinInvite extends Route {
 		const members: unknown[] = [];
 
 		for (const member of Encryption.completeDecryption(first100Members)) {
-			const fetchedUser = await this.App.cassandra.models.User.get(
-				{ userId: Encryption.encrypt(member.userId) },
+			const fetchedUser = await usersTable.get(
+				{ userId: Encryption.encrypt(member.userId!) },
 				{ fields: ["username", "userId", "flags", "publicFlags", "avatar", "tag"] },
 			);
 
@@ -354,7 +411,7 @@ export default class FetchJoinInvite extends Route {
 				user: {
 					username: fetchedUser.username,
 					id: fetchedUser.userId,
-					flags: fetchedUser.flags,
+					flags: FlagFields.cleanPrivateFlags(fetchedUser.flags ?? "0"),
 					publicFlags: fetchedUser.publicFlags,
 					avatar: fetchedUser.avatar,
 					tag: fetchedUser.tag,
@@ -362,7 +419,7 @@ export default class FetchJoinInvite extends Route {
 				owner: finishedGuild.owner?.id === member.userId,
 				nickname: member.nickname,
 				roles: member.roles,
-				joinedAt: member.joinedAt.toISOString(),
+				joinedAt: member.joinedAt!.toISOString(),
 				presence: [],
 			};
 
@@ -392,7 +449,7 @@ export default class FetchJoinInvite extends Route {
 			...fetchedInvite,
 			guild: {
 				// ? it should be the same as if they didn't provide the key
-				id: Encryption.decrypt(inviteExists.guildId),
+				id: Encryption.decrypt(inviteExists.guildId!),
 				name: (fetchedInvite as { guild: finishedGuild }).guild.name,
 				icon: (fetchedInvite as { guild: finishedGuild }).guild.icon,
 				ownerId: (fetchedInvite as { guild: finishedGuild }).guild.ownerId,

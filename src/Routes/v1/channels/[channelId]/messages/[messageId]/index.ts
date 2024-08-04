@@ -4,6 +4,7 @@ import type { UserMiddlewareType } from "@/Middleware/User.ts";
 import userMiddleware from "@/Middleware/User.ts";
 import { array, string } from "@/Types/BodyValidation.ts";
 import type API from "@/Utils/Classes/API.ts";
+import FlagFields from "@/Utils/Classes/BitFields/Flags.ts";
 import GuildMemberFlags from "@/Utils/Classes/BitFields/GuildMember.ts";
 import { FlagUtils } from "@/Utils/Classes/BitFields/NewFlags.ts";
 import Permissions from "@/Utils/Classes/BitFields/Permissions.ts";
@@ -30,7 +31,7 @@ export default class DeleteEditGetMessage extends Route {
 	}
 
 	@Method("delete")
-	@Description("Change this Description when working on this route")
+	@Description("Delete a message")
 	@ContentTypes("any")
 	@Middleware(
 		userMiddleware({
@@ -162,6 +163,11 @@ export default class DeleteEditGetMessage extends Route {
 					bucket: message.bucket,
 				});
 
+				this.App.rabbitMQForwarder("message.delete", {
+					channelId: params.channelId,
+					messageId: params.messageId,
+				});
+
 				set.status = 204;
 
 				return;
@@ -207,10 +213,11 @@ export default class DeleteEditGetMessage extends Route {
 			);
 
 			if (
-				!permissionCheck.hasChannelPermission(Encryption.decrypt(channel.channelId), [
-					"ManageMessages",
-					"ViewMessageHistory",
-				])
+				!permissionCheck.hasChannelPermission(
+					Encryption.decrypt(channel.channelId),
+					["ManageMessages", "ViewMessageHistory"],
+					true,
+				)
 			) {
 				set.status = 403;
 
@@ -245,7 +252,7 @@ export default class DeleteEditGetMessage extends Route {
 	}
 
 	@Method("patch")
-	@Description("Change this Description when working on this route")
+	@Description("Edit a message")
 	@ContentTypes("application/json")
 	@Middleware(
 		userMiddleware({
@@ -434,7 +441,7 @@ export default class DeleteEditGetMessage extends Route {
 	}
 
 	@Method("get")
-	@Description("Change this Description when working on this route")
+	@Description("Get a specific message")
 	@ContentTypes("any")
 	@Middleware(
 		userMiddleware({
@@ -600,7 +607,7 @@ export default class DeleteEditGetMessage extends Route {
 				tag: userData?.tag ?? "0000",
 				avatar: userData?.avatar ?? null,
 				publicFlags: userData?.publicFlags ?? Constants.publicFlags.GhostBadge,
-				flags: userData?.flags ?? Constants.privateFlags.Ghost,
+				flags: userData?.flags ? FlagFields.cleanPrivateFlags(userData?.flags) : Constants.privateFlags.Ghost,
 			},
 			content: message.content,
 			creationDate: new Date(this.App.snowflake.timeStamp(message.messageId.toString())).toISOString(),

@@ -64,21 +64,21 @@ class PermissionHandler {
 	/**
 	 *? Checks if you have permission on any role, also takes in account position (i.e if you have a role with the permission, but a role above that role denies it, then you don't have the permission)
 	 */
-	public hasAnyRole(permission: PermissionKey[], dupe?: boolean): boolean {
+	public hasAnyRole(permission: PermissionKey[], dupe?: boolean, all?: boolean): boolean {
 		// ? If you are the owner or co-owner, you have all permissions
 		if (this.guildMemberFlags.has("Owner") || this.guildMemberFlags.has("CoOwner")) {
 			return true;
 		}
 
 		const roles = this.memberRoles
-			.filter((Role) => Role.permissions.has(permission))
+			.filter((Role) => Role.permissions.has(permission, undefined, all ? "all" : "some"))
 			.sort((a, b) => b.position - a.position);
 
 		if (dupe) {
 			return roles.length > 0;
 		}
 
-		return roles.length > 0 && roles[0]!.permissions.has(permission);
+		return roles.length > 0 && roles[0]!.permissions.has(permission, undefined, all ? "all" : "some");
 	}
 
 	/**
@@ -105,7 +105,7 @@ class PermissionHandler {
 	/**
 	 *? Checks if you have permission to a specific channel
 	 */
-	public hasChannelPermission(channelId: string, permission: PermissionKey[]): boolean {
+	public hasChannelPermission(channelId: string, permission: PermissionKey[], all?: boolean): boolean {
 		const channel = this.channels.find((Channel) => Channel.id === channelId);
 
 		if (!channel) {
@@ -121,12 +121,16 @@ class PermissionHandler {
 		);
 
 		if (overrides.length === 0) {
-			return this.hasAnyRole(permission);
+			return this.hasAnyRole(permission, undefined, all);
 		}
 
-		const allow = overrides.some((Override) => Override.allow.has(permission));
+		const allow = all
+			? overrides.every((Override) => Override.allow.has(permission))
+			: overrides.some((Override) => Override.allow.has(permission));
 
-		const deny = overrides.some((Override) => Override.deny.has(permission));
+		const deny = all
+			? overrides.every((Override) => Override.deny.has(permission))
+			: overrides.some((Override) => Override.deny.has(permission));
 
 		return allow && !deny;
 	}

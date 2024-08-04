@@ -208,10 +208,10 @@ const permissions = {
 		int: 1n << 1n,
 		group: "role",
 		subPermissions: {
-			GuildName: 1n << 0n,
-			GuildDescription: 1n << 1n,
-			GuildIcon: 1n << 2n,
-			MaintenanceToggle: 1n << 3n,
+			ManageGuildName: 1n << 0n,
+			ManageGuildDescription: 1n << 1n,
+			ManageGuildIcon: 1n << 2n,
+			ToggleMaintenance: 1n << 3n,
 			AddBots: 1n << 4n,
 			ViewAuditLog: 1n << 5n,
 			ManageVanity: 1n << 6n,
@@ -221,28 +221,27 @@ const permissions = {
 		int: 1n << 2n,
 		group: "role",
 		subPermissions: {
-			RoleName: 1n << 0n,
-			RoleColor: 1n << 1n,
-			RolePosition: 1n << 2n,
-			RolePermissions: 1n << 3n,
-			ManageUsersRoles: 1n << 4n, // ? If you can give other users roles
-			CreateRole: 1n << 5n,
-			DeleteRole: 1n << 6n,
+			ManageRoleName: 1n << 0n,
+			ManageRoleColor: 1n << 1n,
+			ManageRolePosition: 1n << 2n,
+			ManageRolePermissions: 1n << 3n,
+			CreateRole: 1n << 4n,
+			DeleteRole: 1n << 5n,
 		},
 	},
 	Channels: {
 		int: 1n << 3n,
 		group: "both",
 		subPermissions: {
-			ChannelName: 1n << 0n,
-			ChannelPosition: 1n << 1n,
-			ChannelTopic: 1n << 2n,
-			ChannelSlowmode: 1n << 3n, // ? This doesn't count for the per role slowmode, rather for global
-			ChannelAgeRestriction: 1n << 4n,
-			ChannelInvites: 1n << 5n, // ? If you can view / delete invites
-			ChannelWebhooks: 1n << 6n, // ? If you can view / delete webhooks
+			ManageChannelName: 1n << 0n,
+			ManageChannelPosition: 1n << 1n,
+			ManageChannelTopic: 1n << 2n,
+			ManageChannelSlowmode: 1n << 3n, // ? This doesn't count for the per role slowmode, rather for global
+			ManageChannelAgeRestriction: 1n << 4n,
+			ManageChannelInvites: 1n << 5n, // ? If you can view / delete invites
+			ManageChannelWebhooks: 1n << 6n, // ? If you can view / delete webhooks
 			CreateChannel: 1n << 7n,
-			ChannelPermissionOverrides: 1n << 8n, // ? lets you manage permission overrides
+			ManageChannelPermissionOverrides: 1n << 8n, // ? lets you manage permission overrides
 			DeleteChannel: 1n << 9n, // ? If you can delete channels (or the channel (permission override))
 			ViewChannels: 1n << 10n,
 			ViewMessageHistory: 1n << 11n,
@@ -260,7 +259,7 @@ const permissions = {
 		int: 1n << 4n,
 		group: "role",
 		subPermissions: {
-			MemberRoles: 1n << 0n,
+			ManageMemberRoles: 1n << 0n,
 			MemberDeafen: 1n << 1n,
 			MemberMove: 1n << 2n,
 			MemberVoice: 1n << 3n,
@@ -270,8 +269,8 @@ const permissions = {
 		int: 1n << 5n,
 		group: "role",
 		subPermissions: {
-			EmojiName: 1n << 0n,
-			EmojiImage: 1n << 1n,
+			ManageEmojiName: 1n << 0n,
+			ManageEmojiImage: 1n << 1n,
 			CreateEmoji: 1n << 2n,
 			DeleteEmoji: 1n << 3n,
 		},
@@ -292,7 +291,7 @@ const permissions = {
 		group: "role",
 		subPermissions: {
 			Nickname: 1n << 0n, // ? you can change your own nickname
-			ChangeNickname: 1n << 1n, // ? you can change other peoples nicknames
+			ManageNickname: 1n << 1n, // ? you can change other peoples nicknames
 		},
 	},
 	ManageInvites: {

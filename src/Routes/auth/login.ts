@@ -40,7 +40,7 @@ export default class Login extends Route {
 	@Middleware(bodyValidator(postLoginBody))
 	public async postLogin({ body, set, ip }: CreateRoute<"/login", Infer<typeof postLoginBody>>) {
 		const fetchedUser = await this.fetchUser(body.email);
-		
+
 		if (!fetchedUser) {
 			const error = errorGen.InvalidCredentials();
 
@@ -187,11 +187,14 @@ export default class Login extends Route {
 		if (wasNull) {
 			await settingsTable.insert(tokens as SettingsTable);
 		} else {
-			await settingsTable.update({
-				userId: tokens.userId!,
-			}, {
-				tokens: tokens.tokens as SettingsTable["tokens"],
-			});
+			await settingsTable.update(
+				{
+					userId: tokens.userId!,
+				},
+				{
+					tokens: tokens.tokens as SettingsTable["tokens"],
+				},
+			);
 		}
 
 		this.App.rabbitMQForwarder("sessions.create", {

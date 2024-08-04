@@ -45,8 +45,8 @@ class Snowflake {
 		}
 	}
 
-	public generate(): string {
-		const timestamp = BigInt(Date.now()) - this.epoch;
+	public generate(date: Date = new Date()): string {
+		const timestamp = BigInt(date.getTime()) - this.epoch;
 		const increment = this.incerement++;
 
 		if (this.incerement > maxIncrement) {

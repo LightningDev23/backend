@@ -39,7 +39,7 @@ export default class FetchPatchMember extends Route {
 		user,
 		params,
 		set,
-		body
+		body,
 	}: CreateRoute<"/:guildId/members/:memberId", Infer<typeof modifyMemberBody>, [UserMiddlewareType]>) {
 		return {};
 	}

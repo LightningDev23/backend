@@ -20,14 +20,10 @@ const tableAndColumnNameRegex = /^[A-Z_a-z]\w*$/;
 
 type MergeUnions<A, B> = A | B;
 
-type PossibleType = ([string, string] | string)[]
+type PossibleType = ([string, string] | string)[];
 
-// 
-type Flatten<T> = T extends (infer U)[]
-  ? U extends unknown[]
-    ? Flatten<U>
-    : U
-  : T;
+//
+type Flatten<T> = T extends (infer U)[] ? (U extends unknown[] ? Flatten<U> : U) : T;
 class Table<T> {
 	readonly #_options: T;
 
@@ -49,9 +45,9 @@ class Table<T> {
 			? Options<Types, Columns, PrimaryKeys, IndexKeys>
 			: never;
 	}
-	
+
 	public get tableName() {
-		return this.snakeifyString(this.options.tableName)
+		return this.snakeifyString(this.options.tableName);
 	}
 
 	private checker() {
@@ -152,36 +148,46 @@ class Table<T> {
 			// ? So for this, we got to check the "where" to make sure we got all the primary keys / partition keys else it will throw an error when we try to update.
 			// ? If we do NOT we set another boolean called "hasAllPrimary" if its false, we fetch those keys as well -> then we update the where object to include them
 			// ? so we can then migrate the data
-			
-			const primaryKeys = this.options.primaryKeys.flat()
-			
-			let hasAllPrimary = primaryKeys.every((key) => Object.entries(where).filter(([,v]) => v !== undefined).map(([k]) => k).includes(key));
-			
+
+			const primaryKeys = this.options.primaryKeys.flat();
+
+			let hasAllPrimary = primaryKeys.every((key) =>
+				Object.entries(where)
+					.filter(([, v]) => v !== undefined)
+					.map(([k]) => k)
+					.includes(key),
+			);
+
 			const keysToFetch = [];
-			
+
 			if (!hasAllPrimary) {
 				// ? first check if data has the fields, if so just patch the where
 				for (const key of primaryKeys) {
 					if (!Object.keys(where).includes(key) && !Object.keys(data).includes(key)) {
 						keysToFetch.push(key);
 					}
-					
+
 					if (!Object.keys(where).includes(key)) {
 						where[key] = data[key];
 					}
 				}
-				
+
 				// ? now we remove any keys that are not a primary key or is undefined
 				for (const key of Object.keys(where)) {
 					if (!primaryKeys.includes(key) || where[key] === undefined) {
 						delete where[key];
 					}
 				}
-				
+
 				// ? one last check to see if we have all the primary keys
-				hasAllPrimary = primaryKeys.every((key) => Object.entries(where).filter(([,v]) => v !== undefined).map(([k]) => k).includes(key));
+				hasAllPrimary = primaryKeys.every((key) =>
+					Object.entries(where)
+						.filter(([, v]) => v !== undefined)
+						.map(([k]) => k)
+						.includes(key),
+				);
 			}
-			
+
 			if (!doWeHaveAllFields) {
 				if (migration.fields === "*") {
 					keysToFetch.push(...Object.keys(this.options.columns));
@@ -193,9 +199,9 @@ class Table<T> {
 					}
 				}
 			}
-			
+
 			if (doWeHaveAllFields && hasAllPrimary) {
-				const migratedData = await migration.migrate(Client.getInstance(), structuredClone(data), version) as Data;
+				const migratedData = (await migration.migrate(Client.getInstance(), structuredClone(data), version)) as Data;
 
 				// ? removes any non primary keys from the where object
 				for (const key of Object.keys(where)) {
@@ -203,23 +209,23 @@ class Table<T> {
 						delete where[key];
 					}
 				}
-				
+
 				// ? If something changed, update the data in the database
 				if (Bun.deepEquals(migratedData, data)) {
 					// ? nothing changed, but we still want to update the version
 					const opts = {
-						query: `UPDATE ${this.tableName} SET ${this.snakeifyString(this.versionName)} = ? WHERE ${Object.keys(
-							where,
-						)
+						query: `UPDATE ${this.tableName} SET ${this.snakeifyString(this.versionName)} = ? WHERE ${Object.keys(where)
 							.map((key) => `${this.snakeifyString(key)} = ?`)
 							.join(" AND ")};`,
 						params: [version + 1, ...Object.values(where)],
 					};
 
-					const [, error] = await safePromise(Client.getInstance().connection.execute(opts.query, opts.params, {
-						prepare: true
-					}));
-					
+					const [, error] = await safePromise(
+						Client.getInstance().connection.execute(opts.query, opts.params, {
+							prepare: true,
+						}),
+					);
+
 					if (error) {
 						throw new Error(`[${this.tableName}] There was an error updating the data: ${error.message}`);
 					}
@@ -252,9 +258,11 @@ class Table<T> {
 						],
 					};
 
-					const [, error] = await safePromise(Client.getInstance().connection.execute(opts.query, opts.params, {
-						prepare: true
-					}));
+					const [, error] = await safePromise(
+						Client.getInstance().connection.execute(opts.query, opts.params, {
+							prepare: true,
+						}),
+					);
 
 					if (error) {
 						throw new Error(`[${this.tableName}] There was an error updating the data: ${error.message}`);
@@ -282,10 +290,12 @@ class Table<T> {
 				params: Object.values(where),
 			};
 
-			const [fetchedData, error] = await safePromise(Client.getInstance().connection.execute(opts.query, opts.params, {
-				prepare: true
-			}));
-			
+			const [fetchedData, error] = await safePromise(
+				Client.getInstance().connection.execute(opts.query, opts.params, {
+					prepare: true,
+				}),
+			);
+
 			if (error) {
 				throw new Error(`[${this.tableName}] There was an error fetching the data: ${error.message}`);
 			}
@@ -304,9 +314,9 @@ class Table<T> {
 			});
 
 			const finishedData: Record<string, unknown> = {
-				...data
+				...data,
 			};
-			
+
 			for (const [key, value] of Object.entries(first)) {
 				const foundMappedType = mappedTypes.find((type) => type.key === key);
 
@@ -323,7 +333,7 @@ class Table<T> {
 
 				finishedData[this.convertBack(key)] = this.recursiveConvert(value);
 			}
-			
+
 			// ? If we are missing where keys, add them
 			if (!hasAllPrimary) {
 				for (const key of primaryKeys) {
@@ -332,7 +342,7 @@ class Table<T> {
 					}
 				}
 			}
-			
+
 			// ? now remove any non needed keys from finishedData (i.e any key that is not in migration.fields)
 			if (migration.fields !== "*") {
 				for (const key of Object.keys(finishedData)) {
@@ -341,15 +351,17 @@ class Table<T> {
 					}
 				}
 			}
-			
-			const migratedData = await migration.migrate(Client.getInstance(), structuredClone(finishedData), version) as Data;
+
+			const migratedData = (await migration.migrate(
+				Client.getInstance(),
+				structuredClone(finishedData),
+				version,
+			)) as Data;
 
 			if (Bun.deepEquals(migratedData, finishedData)) {
 				// ? nothing changed, but we still want to update the version
 				const opts = {
-					query: `UPDATE ${this.tableName} SET ${this.snakeifyString(this.versionName)} = ? WHERE ${Object.keys(
-						where,
-					)
+					query: `UPDATE ${this.tableName} SET ${this.snakeifyString(this.versionName)} = ? WHERE ${Object.keys(where)
 						.map((key) => `${this.snakeifyString(key)} = ?`)
 						.join(" AND ")};`,
 					params: [version + 1, ...Object.values(where)],
@@ -364,7 +376,7 @@ class Table<T> {
 				if (error) {
 					throw new Error(`[${this.tableName}] There was an error updating the data: ${error.message}`);
 				}
-				
+
 				App.staticLogger.debug(
 					`[${this.tableName}] No changes were made to the data, but the version was updated to ${version + 1}`,
 				);
@@ -388,7 +400,7 @@ class Table<T> {
 						.join(" AND ")};`,
 					params: [...Object.values(optMigration), version + 1, ...Object.values(where)],
 				};
-				
+
 				const [, error] = await safePromise(
 					Client.getInstance().connection.execute(opts.query, opts.params, {
 						prepare: true,
@@ -462,7 +474,7 @@ class Table<T> {
 			// ? we filter out any empty strings (due to version name) and any duplicates
 			options.fields = Array.from(new Set(options.fields)).filter((f) => f !== "") as Fields;
 		}
-		
+
 		const opts: {
 			params: unknown[];
 			query: string;
@@ -480,10 +492,12 @@ class Table<T> {
 				return v;
 			}),
 		};
-		
-		const [data, error] = await safePromise(gotClient.execute(opts.query, opts.params, {
-			prepare: true
-		}));
+
+		const [data, error] = await safePromise(
+			gotClient.execute(opts.query, opts.params, {
+				prepare: true,
+			}),
+		);
 
 		if (error) {
 			// ? Note: this goes for all errors, the reason we re-throw them, is due to the STUPID damn nature of cassandra-driver
@@ -504,7 +518,7 @@ class Table<T> {
 		> = {};
 
 		const first = data?.first();
-		
+
 		if (!first) {
 			return null;
 		}
@@ -515,14 +529,14 @@ class Table<T> {
 				value: ExtractValueName(value as AllTypes),
 			};
 		});
-		
+
 		for (const [key, value] of Object.entries(first)) {
 			const foundMappedType = mappedTypes.find((type) => type.key === key);
-			
+
 			if (!foundMappedType) {
 				continue;
 			}
-			
+
 			// ? If the value is a array but the returned value is not an array (/null) we make it an array, this is due to cassandra returning null if the value is empty
 			if (foundMappedType.value.toString().includes("list") && !value) {
 				finishedData[
@@ -544,10 +558,10 @@ class Table<T> {
 				>
 			] = this.recursiveConvert(value);
 		}
-		
+
 		if (this.versionName !== "") {
 			const version = first[this.versionName];
-			
+
 			if (version === undefined || version === null) {
 				finishedData = await this.migrateData(finishedData, 0, filter);
 			}
@@ -555,7 +569,6 @@ class Table<T> {
 			if (typeof version === "number" && version < this.version) {
 				finishedData = await this.migrateData(finishedData, version, filter);
 			}
-			
 		}
 
 		// ? If there's any extra data remove it, we only want to return what the user asked for
@@ -565,7 +578,7 @@ class Table<T> {
 					delete finishedData[key as never];
 				}
 			}
-			
+
 			// ? now if there's any keys we are missing, add it as null (unless its a list in which that case we add it as [])
 			for (const key of options.fields) {
 				if (!Object.keys(finishedData).includes(key as never)) {
@@ -583,7 +596,7 @@ class Table<T> {
 				}
 			}
 		}
-		
+
 		return finishedData as PublicGetReturnType<
 			ConvertObjectToNormal<AdditionalColumns, this["options"]["types"]> & ExtractTypesFromCreateTable<this["options"]>,
 			Fields
@@ -663,9 +676,11 @@ class Table<T> {
 			params: [...Object.values(update).map((v) => this.recursiveConvert(v, true)), ...Object.values(filter)],
 		};
 
-		const [, error] = await safePromise(gotClient.execute(opts.query, opts.params, {
-			prepare: true
-		}));
+		const [, error] = await safePromise(
+			gotClient.execute(opts.query, opts.params, {
+				prepare: true,
+			}),
+		);
 
 		if (error) {
 			throw new Error(`[${this.tableName}] There was an error updating the data: ${error.message}`);
@@ -704,9 +719,11 @@ class Table<T> {
 			params: Object.values(filter),
 		};
 
-		const [, error] = await safePromise(gotClient.execute(opts.query, opts.params, {
-			prepare: true
-		}));
+		const [, error] = await safePromise(
+			gotClient.execute(opts.query, opts.params, {
+				prepare: true,
+			}),
+		);
 
 		if (error) {
 			throw new Error(`[${this.tableName}] There was an error deleting the data: ${error.message}`);
@@ -743,9 +760,11 @@ class Table<T> {
 			params: Object.values(data).map((v) => this.recursiveConvert(v, true)),
 		};
 
-		const [, error] = await safePromise(gotClient.execute(opts.query, opts.params, {
-			prepare: true
-		}));
+		const [, error] = await safePromise(
+			gotClient.execute(opts.query, opts.params, {
+				prepare: true,
+			}),
+		);
 
 		if (error) {
 			throw new Error(`[${this.tableName}] There was an error creating the data: ${error.message}`);
@@ -755,7 +774,7 @@ class Table<T> {
 
 		return data;
 	}
-	
+
 	/**
 	 * Just for historical purposes, this is just a link to the create function
 	 */
@@ -788,8 +807,10 @@ class Table<T> {
 			limit?: number;
 		},
 	): Promise<
-	Finder<PublicGetReturnType<ExtractTypesFromCreateTable<this["options"]>, Fields> &
-	PublicGetReturnType<ConvertObjectToNormal<AdditionalColumns, this["options"]["types"]>, Fields>>
+		Finder<
+			PublicGetReturnType<ExtractTypesFromCreateTable<this["options"]>, Fields> &
+				PublicGetReturnType<ConvertObjectToNormal<AdditionalColumns, this["options"]["types"]>, Fields>
+		>
 	> {
 		if (
 			!options ||
@@ -831,7 +852,9 @@ class Table<T> {
 				filter,
 			)
 				.map((key) => `${this.snakeifyString(key)} = ?`)
-				.join(" AND ")}${options.allowFiltering ? " ALLOW FILTERING" : ""}${options.limit ? ` LIMIT ${options.limit}` : ""};`,
+				.join(
+					" AND ",
+				)}${options.allowFiltering ? " ALLOW FILTERING" : ""}${options.limit ? ` LIMIT ${options.limit}` : ""};`,
 			params: Object.values(filter).map((v) => {
 				if (typeof v === "object") {
 					return this.recursiveConvert(v, true);
@@ -840,26 +863,28 @@ class Table<T> {
 				return v;
 			}),
 		};
-		
-		const [data, error] = await safePromise(gotClient.execute(opts.query, opts.params, {
-			prepare: true
-		}));
-		
+
+		const [data, error] = await safePromise(
+			gotClient.execute(opts.query, opts.params, {
+				prepare: true,
+			}),
+		);
+
 		if (error) {
 			throw new Error(`[${this.tableName}] There was an error fetching the data: ${error.message}`);
 		}
-		
+
 		if (!data) {
 			return new Finder([]);
 		}
-		
+
 		const mappedTypes = Object.entries(this.options.columns).map(([key, value]) => {
 			return {
 				key: this.snakeifyString(key),
 				value: ExtractValueName(value as AllTypes),
 			};
 		});
-		
+
 		const finishedData: Partial<
 			PublicGetReturnType<
 				ConvertObjectToNormal<AdditionalColumns, this["options"]["types"]> &
@@ -867,17 +892,17 @@ class Table<T> {
 				Fields
 			>
 		>[] = [];
-		
+
 		for (const row of data) {
 			let newObj: Record<string, unknown> = {};
-			
+
 			for (const [key, value] of Object.entries(row)) {
 				const foundMappedType = mappedTypes.find((type) => type.key === key);
-				
+
 				if (!foundMappedType) {
 					continue;
 				}
-				
+
 				// ? If the value is a array but the returned value is not an array (/null) we make it an array, this is due to cassandra returning null if the value is empty
 				if (foundMappedType.value.toString().includes("list") && !value) {
 					newObj[
@@ -887,10 +912,10 @@ class Table<T> {
 							Fields
 						>
 					] = [] as never;
-					
+
 					continue;
 				}
-				
+
 				newObj[
 					this.convertBack(key) as keyof PublicGetReturnType<
 						ConvertObjectToNormal<AdditionalColumns, this["options"]["types"]> &
@@ -899,22 +924,22 @@ class Table<T> {
 					>
 				] = this.recursiveConvert(value);
 			}
-			
+
 			if (this.versionName !== "") {
 				const version = row[this.versionName];
-				
+
 				if (version === undefined || version === null) {
-					newObj = await this.migrateData(newObj, 0, filter)
+					newObj = await this.migrateData(newObj, 0, filter);
 				}
-				
+
 				if (typeof version === "number" && version < this.version) {
 					newObj = await this.migrateData(newObj, version, filter);
 				}
 			}
-			
+
 			finishedData.push(newObj);
 		}
-		
+
 		// ? If there's any extra data remove it, we only want to return what the user asked for
 		if (options.fields !== "*" && options.fields) {
 			for (const obj of finishedData) {
@@ -923,16 +948,16 @@ class Table<T> {
 						delete obj[key as never];
 					}
 				}
-				
+
 				// ? now if there's any keys we are missing, add it as null (unless its a list in which that case we add it as [])
 				for (const key of options.fields) {
 					if (!Object.keys(obj).includes(key as never)) {
 						const foundMappedType = mappedTypes.find((type) => type.key === this.snakeifyString(key as string));
-						
+
 						if (!foundMappedType) {
 							continue;
 						}
-						
+
 						if (foundMappedType.value.toString().includes("list")) {
 							obj[key as never] = [];
 						} else {
@@ -942,11 +967,14 @@ class Table<T> {
 				}
 			}
 		}
-		
-		return new Finder(finishedData as PublicGetReturnType<
-			ConvertObjectToNormal<AdditionalColumns, this["options"]["types"]> & ExtractTypesFromCreateTable<this["options"]>,
-			Fields
-		>);
+
+		return new Finder(
+			finishedData as PublicGetReturnType<
+				ConvertObjectToNormal<AdditionalColumns, this["options"]["types"]> &
+					ExtractTypesFromCreateTable<this["options"]>,
+				Fields
+			>,
+		);
 	}
 
 	/**
@@ -1064,7 +1092,11 @@ class Table<T> {
 	}
 
 	public get version() {
-		return this.options.version === undefined ? 0 : Array.isArray(this.options.version) ? this.options.version[1] : this.options.version
+		return this.options.version === undefined
+			? 0
+			: Array.isArray(this.options.version)
+				? this.options.version[1]
+				: this.options.version;
 	}
 
 	private handleWithOptions(key: string, value: unknown) {
@@ -1073,7 +1105,7 @@ class Table<T> {
 		if (value === null || value === undefined) {
 			return "";
 		}
-		
+
 		if (key === "clustering_order") {
 			return `CLUSTERING ${value}`;
 		}

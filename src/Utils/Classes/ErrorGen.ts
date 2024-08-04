@@ -176,7 +176,7 @@ const errorGen = {
 		return new HTTPErrors(4_027);
 	},
 	/*
-	 * If the provided member does not exist 
+	 * If the provided member does not exist
 	 */
 	UnknownMember: () => {
 		return new HTTPErrors(4_028);
@@ -192,7 +192,7 @@ const errorGen = {
 	 */
 	InvalidRole: () => {
 		return new HTTPErrors(4_030);
-	}
+	},
 };
 
 export default errorGen;

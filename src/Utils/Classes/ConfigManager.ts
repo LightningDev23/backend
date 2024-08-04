@@ -146,10 +146,9 @@ export default class ConfigManager {
 			}
 
 			if (result.valid) {
-				
 				// ? loops thru and replace all ${configDirectory} strings with the config directory
 				const configDirectory = this.configsPath;
-				
+
 				const replace = (obj: any) => {
 					for (const [key, value] of Object.entries(obj)) {
 						if (typeof value === "object" && value !== null) {
@@ -158,10 +157,10 @@ export default class ConfigManager {
 							obj[key] = value.replaceAll("${configDirectory}", configDirectory);
 						}
 					}
-					
+
 					return obj;
 				};
-				
+
 				this.oldConfig = this.config ?? replace(parsed);
 				this.config = replace(parsed);
 			} else {

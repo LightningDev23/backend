@@ -162,7 +162,7 @@ export default class DeleteEditGetMessage extends Route {
 					messageId: params.messageId,
 					bucket: message.bucket,
 				});
-				
+
 				this.App.rabbitMQForwarder("message.delete", {
 					channelId: params.channelId,
 					messageId: params.messageId,
@@ -213,10 +213,11 @@ export default class DeleteEditGetMessage extends Route {
 			);
 
 			if (
-				!permissionCheck.hasChannelPermission(Encryption.decrypt(channel.channelId), [
-					"ManageMessages",
-					"ViewMessageHistory",
-				], true)
+				!permissionCheck.hasChannelPermission(
+					Encryption.decrypt(channel.channelId),
+					["ManageMessages", "ViewMessageHistory"],
+					true,
+				)
 			) {
 				set.status = 403;
 
@@ -232,7 +233,7 @@ export default class DeleteEditGetMessage extends Route {
 
 				return missingPermission.toJSON();
 			}
-			
+
 			await this.App.cassandra.models.Message.remove({
 				channelId: Encryption.encrypt(params.channelId),
 				messageId: params.messageId,

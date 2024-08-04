@@ -43,7 +43,6 @@ export default class AddRemoveRole extends Route {
 			return member;
 		}
 
-		
 		if (member.roles.includes(Encryption.encrypt(params.roleId))) {
 			// ? they already got the role no need to error out
 			// ? we also don't send a guildMember.update event.. though possibly should? if someone complains we can talk about it
@@ -93,7 +92,7 @@ export default class AddRemoveRole extends Route {
 		if (set.status !== 200 || "code" in member) {
 			return member;
 		}
-		
+
 		if (params.roleId === params.guildId) {
 			set.status = 400;
 

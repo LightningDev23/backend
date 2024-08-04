@@ -1,7 +1,7 @@
 import type Client from "./Client.ts";
 import type Table from "./Table.ts";
 
-type Check<T> = [T] extends [string] ? (string extends T ? false : true) : false
+type Check<T> = [T] extends [string] ? (string extends T ? false : true) : false;
 
 export type ColumnTypesRaw =
 	| BigIntConstructor

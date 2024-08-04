@@ -83,7 +83,7 @@ class App {
 
 		this.logger.who = who;
 	}
-	
+
 	public rabbitMQ!: RabbitMQ;
 
 	public logo() {
@@ -125,7 +125,7 @@ class App {
 			this.config.scyllaDB.networkTopologyStrategy,
 			this.config.scyllaDB.durableWrites,
 		);
-		
+
 		await Client.getInstance().connect({
 			keyspace: this.config.scyllaDB.keyspace,
 			nodes: this.config.scyllaDB.nodes,
@@ -133,9 +133,9 @@ class App {
 			username: this.config.scyllaDB.username,
 			db: {
 				durableWrites: this.config.scyllaDB.durableWrites,
-				networkTopologyStrategy: this.config.scyllaDB.networkTopologyStrategy
-			}
-		})
+				networkTopologyStrategy: this.config.scyllaDB.networkTopologyStrategy,
+			},
+		});
 
 		this.cache.on("Connected", () => this.logger.info("Connected to Redis"));
 		this.cache.on("Error", (err) => {
@@ -151,7 +151,7 @@ class App {
 
 			process.exit(1);
 		});
-		
+
 		this.rabbitMQ = new RabbitMQ(this.config);
 
 		this.logger.info("Connecting to Redis");
@@ -171,7 +171,7 @@ class App {
 		} else {
 			this.logger.error("This shouldn't happen, please report this");
 		}
-		
+
 		this.logger.info("Connected to RabbitMQ");
 		this.logger.info("Connected to Redis");
 	}

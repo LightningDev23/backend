@@ -23,7 +23,9 @@ const heartbeat = new Worker(getUrl("./heartbeat.ts"), { argv: process.argv });
 const mainLogger = new Logger({}, "MIN");
 let rabbitMq: RabbitMQ | null = null;
 
-mainLogger.warn("The Typescript websocket has been deprecated. Please use the go websocket, you will not get any support when running in dual mode.");
+mainLogger.warn(
+	"The Typescript websocket has been deprecated. Please use the go websocket, you will not get any support when running in dual mode.",
+);
 
 const data = {
 	api: {

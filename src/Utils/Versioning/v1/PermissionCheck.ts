@@ -111,7 +111,7 @@ class PermissionHandler {
 		if (!channel) {
 			return false;
 		}
-		
+
 		if (this.guildMemberFlags.has("Owner") || this.guildMemberFlags.has("CoOwner")) {
 			return true;
 		}
@@ -124,9 +124,13 @@ class PermissionHandler {
 			return this.hasAnyRole(permission, undefined, all);
 		}
 
-		const allow = all ? overrides.every((Override) => Override.allow.has(permission)) : overrides.some((Override) => Override.allow.has(permission));
+		const allow = all
+			? overrides.every((Override) => Override.allow.has(permission))
+			: overrides.some((Override) => Override.allow.has(permission));
 
-		const deny = all ? overrides.every((Override) => Override.deny.has(permission)) : overrides.some((Override) => Override.deny.has(permission));
+		const deny = all
+			? overrides.every((Override) => Override.deny.has(permission))
+			: overrides.some((Override) => Override.deny.has(permission));
 
 		return allow && !deny;
 	}

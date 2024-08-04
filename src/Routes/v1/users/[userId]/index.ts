@@ -39,11 +39,14 @@ export default class Fetch extends Route {
 		}),
 	)
 	public async getProfile({ params, query, set }: CreateRoute<"/users/:userId", any, [UserMiddlewareType]>) {
-		const fetchedUser = await usersTable.get({
-			userId: Encryption.encrypt(params.userId),
-		}, {
-			fields: ["flags", "publicFlags", "userId", "username", "globalNickname", "tag", "avatar"]
-		});
+		const fetchedUser = await usersTable.get(
+			{
+				userId: Encryption.encrypt(params.userId),
+			},
+			{
+				fields: ["flags", "publicFlags", "userId", "username", "globalNickname", "tag", "avatar"],
+			},
+		);
 
 		if (!fetchedUser) {
 			const userNotFound = errorGen.InvalidUser();

@@ -77,12 +77,12 @@ const serializeTypeToJson = (returnType: Type<ts.Type>, loop?: number): any => {
 		if (returnType.getText() === "Date") {
 			return "Date";
 		}
-		
+
 		for (const prop of returnType.getProperties()) {
 			if (!prop.getValueDeclaration()) {
 				continue;
 			}
-			
+
 			obj[prop.getName()] = serializeTypeToJson(
 				typechecker.getTypeOfSymbolAtLocation(prop, prop.getValueDeclaration()!),
 				// biome-ignore lint/style/noParameterAssign: Its fine

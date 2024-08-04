@@ -81,7 +81,7 @@ export interface Server {
 		enabled: boolean;
 		domainsPath: string;
 		action: "block" | "alert";
-	}
+	};
 }
 
 interface Interval {

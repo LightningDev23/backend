@@ -66,13 +66,16 @@ export default class AckingIDBAsed extends Route {
 			return "Internal Server Error :(";
 		}
 
-		const guildMember = await guildMembersTable.get({
-			guildId: channel.guildId!,
-			userId: Encryption.encrypt(user.id),
-			left: false,
-		}, {
-            fields: ["flags", "channelAcks", "guildMemberId"]
-        });
+		const guildMember = await guildMembersTable.get(
+			{
+				guildId: channel.guildId!,
+				userId: Encryption.encrypt(user.id),
+				left: false,
+			},
+			{
+				fields: ["flags", "channelAcks", "guildMemberId"],
+			},
+		);
 
 		if (!guildMember) {
 			set.status = 500;
@@ -126,38 +129,39 @@ export default class AckingIDBAsed extends Route {
 			);
 		}
 
-        const acks = guildMember.channelAcks ?? [];
-        
-        const foundAck = acks.find(ack => ack.channelId === Encryption.encrypt(params.channelId));
-        
-        if (foundAck) {
-            foundAck.messageId = lastAckedMessageId ? Encryption.encrypt(lastAckedMessageId) : null;
-        } else {
-            acks.push({
-                channelId: Encryption.encrypt(params.channelId),
-                messageId: lastAckedMessageId ? Encryption.encrypt(lastAckedMessageId) : null
-            });
-        }
-        
-        this.App.rabbitMQForwarder("message.ack", {
-            channelId: params.channelId,
-            messageId: lastAckedMessageId
-        })
-        
-        console.log(acks)
-        
-        await guildMembersTable.update({
-            guildId: channel.guildId!,
-            left: false,
-            guildMemberId: guildMember.guildMemberId!
-        }, {
-            channelAcks: acks as { channelId: string; messageId: string }[]
-        });
-        
-        set.status = 204;
-        
-        
-        
-        return;
+		const acks = guildMember.channelAcks ?? [];
+
+		const foundAck = acks.find((ack) => ack.channelId === Encryption.encrypt(params.channelId));
+
+		if (foundAck) {
+			foundAck.messageId = lastAckedMessageId ? Encryption.encrypt(lastAckedMessageId) : null;
+		} else {
+			acks.push({
+				channelId: Encryption.encrypt(params.channelId),
+				messageId: lastAckedMessageId ? Encryption.encrypt(lastAckedMessageId) : null,
+			});
+		}
+
+		this.App.rabbitMQForwarder("message.ack", {
+			channelId: params.channelId,
+			messageId: lastAckedMessageId,
+		});
+
+		console.log(acks);
+
+		await guildMembersTable.update(
+			{
+				guildId: channel.guildId!,
+				left: false,
+				guildMemberId: guildMember.guildMemberId!,
+			},
+			{
+				channelAcks: acks as { channelId: string; messageId: string }[],
+			},
+		);
+
+		set.status = 204;
+
+		return;
 	}
 }

@@ -115,7 +115,7 @@ const userMiddleware = (options: UserMiddleware) => {
 
 			const userSettings = await settingsTable.get(
 				{
-					userId: Encryption.encrypt(decodedToken.Snowflake)
+					userId: Encryption.encrypt(decodedToken.Snowflake),
 				},
 				{
 					fields: [
@@ -143,7 +143,6 @@ const userMiddleware = (options: UserMiddleware) => {
 					fields: ["email", "userId", "flags", "password", "publicFlags", "guilds", "username"],
 				},
 			);
-			
 
 			if (!userSettings || !userData) {
 				app.logger.debug("User settings wasn't found", decodedToken.Snowflake);

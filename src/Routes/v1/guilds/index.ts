@@ -25,7 +25,10 @@ import { guildsTable, type GuildTable } from "@/Utils/Cql/Tables/GuildTable.ts";
 import { usersTable } from "@/Utils/Cql/Tables/UserTable.ts";
 import { rolesTable, type RoleTable } from "@/Utils/Cql/Tables/RoleTable.ts";
 import type { ChannelTable } from "@/Utils/Cql/Tables/ChannelTable.ts";
-import { permissionsOverridesTable, type PermissionsOverridesTable } from "@/Utils/Cql/Tables/PermissionsOverideTable.ts";
+import {
+	permissionsOverridesTable,
+	type PermissionsOverridesTable,
+} from "@/Utils/Cql/Tables/PermissionsOverideTable.ts";
 
 const postGuild = {
 	name: string().max(Constants.settings.Max.GuildNameLength).min(2),
@@ -124,7 +127,7 @@ export interface finishedGuild {
 		permissions: [string, string][];
 		position: number;
 	}[];
-	memberCount?: number
+	memberCount?: number;
 }
 
 export interface rawGuild {
@@ -227,7 +230,7 @@ export default class FetchGuilds extends Route {
 
 			rawFinishedGuild.push(raw);
 		}
-		
+
 		this.App.logger.stopTimer("Guild Fetching");
 
 		for (const guild of invalidGuildIds) {
@@ -246,9 +249,10 @@ export default class FetchGuilds extends Route {
 		const guilds: finishedGuild[] = [];
 
 		this.App.logger.startTimer("Guild Message Fetching", true);
-		
-		const messageFetcher = this.App.routeCache.get(this.App.router.match("/v1/channels/123/messages")!.filePath)?.routeClass as FetchCreateMessages;
-		
+
+		const messageFetcher = this.App.routeCache.get(this.App.router.match("/v1/channels/123/messages")!.filePath)
+			?.routeClass as FetchCreateMessages;
+
 		for (const rawGuild of rawFinishedGuild) {
 			const guild: Partial<finishedGuild> = {
 				name: Encryption.decrypt(rawGuild.guild.name),
@@ -338,7 +342,7 @@ export default class FetchGuilds extends Route {
 
 			guilds.push(guild as finishedGuild);
 		}
-		
+
 		this.App.logger.stopTimer("Guild Message Fetching");
 
 		return guilds;

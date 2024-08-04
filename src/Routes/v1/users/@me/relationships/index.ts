@@ -136,7 +136,12 @@ export default class Relationships extends Route {
 
 		// ? We remove any marked as none or ignored and is not pending since that means we have no relationship with them
 		return Encryption.completeDecryption(
-			parsedRelationships.filter((x) => x.relationshipFlags !== relationshipFlags.None || x.relationshipFlags !== relationshipFlags.Ignored || x.pending),
+			parsedRelationships.filter(
+				(x) =>
+					x.relationshipFlags !== relationshipFlags.None ||
+					x.relationshipFlags !== relationshipFlags.Ignored ||
+					x.pending,
+			),
 		);
 	}
 

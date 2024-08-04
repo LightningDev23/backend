@@ -296,13 +296,13 @@ export default class FetchCreateChannels extends Route {
 				}
 			}
 		}
-		
+
 		if (invalidField.hasErrors()) {
 			return invalidField.toJSON();
 		}
 
 		const channels = await channelsTable.find({
 			guildId: Encryption.encrypt(params.guildId),
-		})
+		});
 	}
 }
